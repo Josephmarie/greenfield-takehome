@@ -1,5 +1,13 @@
 # Render Blueprint for the Greenfield Cardiology take-home.
 #
+# NOTE ON THE ACTUAL DEPLOY: this repo is private and the Render workspace in
+# use (credit@cortif.ai) isn't the GitHub-connected account, so Render couldn't
+# fetch the repo for a Blueprint/repo deploy. The live services were instead
+# created from container images built on GitHub Actions and pushed to
+# ghcr.io/josephmarie/{greenfield-voice-agent,greenfield-ocr}, deployed via the
+# Render API with a ghcr registry credential. This file remains the canonical
+# IaC description and works as-is once the repo is connected to the workspace.
+#
 # Two web services:
 #   1. greenfield-voice-agent — the Retell tool backend (voice-agent/backend.py).
 #      Plain Python runtime; binds Render's $PORT (the take-home calls this
