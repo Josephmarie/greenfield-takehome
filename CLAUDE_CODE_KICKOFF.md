@@ -49,17 +49,25 @@ before declaring any step done.
      (or ngrok if I have it configured). Capture the public URL as `BACKEND_URL`.
 
 3. **Provision Retell.**
-   - First, VERIFY `provision_retell.py` against the installed `retell-sdk`
-     version and the current Retell API reference (create-retell-llm,
-     create-agent, create-phone-number). Field names drift between versions —
-     read the SDK, fix any mismatched names, do not assume mine are current.
-     Confirm the chosen LLM model string is one Retell currently supports; if
-     not, pick the closest Claude option Retell exposes.
-   - With `RETELL_API_KEY` and `BACKEND_URL` set: `python provision_retell.py`
-   - Print the callable number.
+   - provision_retell.py has already been verified against retell-sdk 5.45.1.
+   - I already own Twilio number +14156504518. Do NOT buy or provision a new number.
+   - Run provision_retell.py but SKIP the phone_number.create step.
+   - After creating the Retell agent, get the Retell inbound webhook URL
+     (format: https://api.retellai.com/inbound-call/agent_xxx).
+   - Use the Twilio MCP to update +14156504518's voice webhook to that URL.
+   - Print the agent_id and llm_id when done.
 
 4. **Reflection.** Convert `reflection.md` to PDF: `pandoc reflection.md -o reflection.pdf`
    (install pandoc if missing).
+
+5. **Web app.**
+   - Scaffold a Vite React app: `npm create vite@latest greenfield-web -- --template react`
+   - `cd greenfield-web && npm install`
+   - Copy the multi-page app: `cp ../greenfield-app.jsx src/App.jsx`
+   - Install fonts dependency: `npm install`
+   - Run `npm run build` to confirm it compiles clean.
+   - The app has three pages: Landing (with live call), post-call Summary, and OCR Console.
+   - Set LIVE=false stays as default for the demo (simulated call lifecycle).
 
 ## Manual steps — tell me, then pause
 
@@ -90,3 +98,4 @@ value from me:
 - The emergency-override behavior and the PHI-free voicemail are the two things
   that fail the take-home if wrong. If you change the system prompt, re-verify
   both.
+

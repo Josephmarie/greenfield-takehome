@@ -9,6 +9,7 @@ Retell function tools at the matching routes. All data is the synthetic KB.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta
 
 from fastapi import FastAPI
