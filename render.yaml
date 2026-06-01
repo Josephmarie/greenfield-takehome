@@ -1,0 +1,43 @@
+# Render Blueprint for the Greenfield Cardiology take-home.
+#
+# Two web services:
+#   1. greenfield-voice-agent — the Retell tool backend (voice-agent/backend.py).
+#      Plain Python runtime; binds Render's $PORT (the take-home calls this
+#      "port 8000" — Render maps the public 443 -> container $PORT for you).
+#   2. greenfield-ocr — the fax-intake OCR pipeline behind a FastAPI wrapper
+#      (greenfield-ocr/api.py, POST /process). Built from a Dockerfile so the
+#      image includes poppler-utils, which pdf2image needs to rasterize PDFs.
+#
+# Secrets (RETELL_API_KEY, ANTHROPIC_API_KEY, …) are marked sync:false and are
+# set per-service in the dashboard / via the API — never committed.
+
+services:
+  - type: web
+    name: greenfield-voice-agent
+    runtime: python
+    plan: free
+    rootDir: voice-agent
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /docs
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: RETELL_API_KEY
+        sync: false
+      - key: RETELL_AGENT_ID
+        sync: false
+      - key: RETELL_FROM_NUMBER
+        sync: false
+
+  - type: web
+    name: greenfield-ocr
+    runtime: docker
+    plan: free
+    rootDir: greenfield-ocr
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
