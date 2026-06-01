@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 
 // Greenfield Cardiology — multi-page web app
 // Landing (with live intake call) → post-call Summary (editable) → OCR Console.
-// Same design system throughout. Calls run a simulated lifecycle so the whole
-// flow demos inline; flip LIVE + API_BASE to run against the Retell backend.
-const LIVE = false;
-const API_BASE = "http://localhost:8000";
+// Same design system throughout. The inbound/outbound call flows run a
+// simulated lifecycle for the demo; the OCR console uploads to the live
+// pipeline (OCR_BASE) and renders the real result.
+const LIVE = true;
+const API_BASE = "https://greenfield-voice-agent.onrender.com"; // Retell tool backend (Render)
+const OCR_BASE = "https://greenfield-ocr.onrender.com";          // OCR pipeline /process (Render)
 
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
@@ -177,8 +179,46 @@ function CallDock({call,onEnd}){const s=CALL_STATUS[call.status]||CALL_STATUS.di
  </div>);
 }
 const OUTBOUND=[{at:0,status:"dialing"},{at:1000,status:"ringing"},{at:3200,status:"voicemail",line:{who:"system",text:"Voicemail detected — leaving PHI-free message only"}},{at:4400,line:{who:"agent",text:"This is a message from Greenfield Cardiology. Please call us back at 415-555-0120. Thank you."}},{at:7600,status:"ended",line:{who:"system",text:"Attempt 1 of 3 logged · next attempt eligible in 48 hours"}}];
+// Renders the live result returned by the OCR pipeline's POST /process.
+function UploadedResult({result,onClear}){
+ const c=result.classification||{};
+ const conf=typeof c.confidence==="number"?c.confidence:null;
+ const ext=result.extracted||null;
+ const review=result.review_queue||[];
+ const fmt=v=>v===null||v===undefined?"not found":(typeof v==="object"?JSON.stringify(v):String(v));
+ return(<div style={{animation:"panelIn .3s ease both"}}>
+  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20}}>
+   <div><div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:C.teal,marginBottom:6}}>Uploaded · live pipeline</div>
+    <h1 style={{fontFamily:C.display,fontSize:26,fontWeight:600,margin:0,wordBreak:"break-all"}}>{result.source||"document"}</h1></div>
+   <button onClick={onClear} style={{fontFamily:C.sans,fontSize:12,fontWeight:600,color:C.tealDeep,background:"none",border:`1px solid ${C.line}`,borderRadius:8,padding:"8px 12px",cursor:"pointer",whiteSpace:"nowrap"}}>← Back to samples</button>
+  </div>
+  <div style={{display:"flex",alignItems:"center",gap:14,marginTop:18,padding:"14px 18px",background:C.card,border:`1px solid ${C.line}`,borderRadius:9}}>
+   <span style={{fontFamily:C.sans,fontSize:12,color:C.inkSoft}}>Classified as</span>
+   <span style={{fontFamily:C.display,fontSize:15,fontWeight:600}}>{c.doc_type||"uncertain"}</span>
+   {conf!==null&&<><div style={{flex:1,height:6,background:C.paper,borderRadius:3,overflow:"hidden",marginLeft:8}}><div style={{width:`${conf*100}%`,height:"100%",background:C.teal,borderRadius:3}}/></div>
+   <span style={{fontFamily:C.mono,fontSize:13,color:C.teal,fontWeight:500}}>{(conf*100).toFixed(0)}%</span></>}
+  </div>
+  {result.halt_reason&&<div style={{marginTop:14,padding:"12px 16px",background:"rgba(168,106,18,.08)",border:`1px solid rgba(168,106,18,.3)`,borderRadius:9,fontFamily:C.sans,fontSize:13,color:C.amber}}>{result.halt_reason}</div>}
+  {ext&&(<><ST>Extracted fields</ST><div style={{border:`1px solid ${C.line}`,borderRadius:9,overflow:"hidden"}}>{Object.entries(ext).map(([k,v],i)=>(<div key={k} style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:14,padding:"11px 16px",borderTop:i?`1px solid ${C.line}`:"none",background:C.card}}><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{k}</span><span style={{fontFamily:C.mono,fontSize:13,color:(v===null||v===undefined)?C.red:C.ink,fontStyle:(v===null||v===undefined)?"italic":"normal",wordBreak:"break-word"}}>{fmt(v)}</span></div>))}</div></>)}
+  <ST>Human review queue</ST>{review.length===0?(<div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px",background:"rgba(47,125,50,.06)",border:`1px solid rgba(47,125,50,.2)`,borderRadius:9}}><span style={{width:8,height:8,borderRadius:"50%",background:C.green}}/><span style={{fontFamily:C.sans,fontSize:13}}>Nothing flagged.</span></div>):(<div style={{border:`1px solid ${C.line}`,borderRadius:9,overflow:"hidden"}}>{review.map((r,i)=>(<div key={i} style={{display:"flex",gap:14,padding:"13px 16px",alignItems:"baseline",borderTop:i?`1px solid ${C.line}`:"none",background:C.card}}><span style={{fontFamily:C.mono,fontSize:13,color:C.red,fontWeight:500,minWidth:130}}>{r.field}</span><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{r.reason||r.status}</span></div>))}</div>)}
+  {result.deny_back_letter&&(<><ST>Deny-back letter</ST><pre style={{marginTop:6,padding:"20px 22px",background:C.card,border:`1px solid ${C.line}`,borderRadius:9,fontFamily:C.mono,fontSize:12.5,color:C.ink,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{result.deny_back_letter}</pre></>)}
+  <div style={{marginTop:18,fontFamily:C.mono,fontSize:12,color:result.pushed_downstream?C.green:C.amber}}>Pushed downstream: {String(result.pushed_downstream)}</div>
+  <div style={{height:60}}/>
+ </div>);
+}
+
 function Console(){
  const[sel,setSel]=useState(FAXES[0].id);const[call,setCall]=useState(null);const timers=useRef([]);const tick=useRef(null);
+ const[up,setUp]=useState(null);const[upBusy,setUpBusy]=useState(false);const[upErr,setUpErr]=useState(null);const fileRef=useRef(null);
+ const doUpload=async(file)=>{
+  if(!file)return;setUpErr(null);setUpBusy(true);setUp(null);
+  try{
+   const fd=new FormData();fd.append("file",file);
+   const res=await fetch(`${OCR_BASE}/process`,{method:"POST",body:fd});
+   if(!res.ok){let m=`HTTP ${res.status}`;try{const e=await res.json();if(e.detail)m=e.detail;}catch{}throw new Error(m);}
+   setUp(await res.json());
+  }catch(err){setUpErr(err.message||"Upload failed");}finally{setUpBusy(false);}
+ };
  const fax=FAXES.find(f=>f.id===sel);const counts={cleared:FAXES.filter(f=>f.disposition==="cleared").length,flagged:FAXES.filter(f=>f.disposition==="flagged").length,held:FAXES.filter(f=>f.disposition==="held").length};
  const clear=()=>{timers.current.forEach(clearTimeout);timers.current=[];if(tick.current){clearInterval(tick.current);tick.current=null;}};
  useEffect(()=>clear,[]);
@@ -188,10 +228,16 @@ function Console(){
   <aside style={{borderRight:`1px solid ${C.line}`,padding:"18px 16px"}}>
    <div style={{display:"flex",justifyContent:"space-between",padding:"0 8px 14px"}}>{[["Cleared",counts.cleared,C.green],["Flagged",counts.flagged,C.amber],["Held",counts.held,C.red]].map(([l,n,c])=>(<div key={l} style={{textAlign:"center"}}><div style={{fontFamily:C.mono,fontSize:18,color:c,fontWeight:500}}>{n}</div><div style={{fontFamily:C.sans,fontSize:9,letterSpacing:".06em",textTransform:"uppercase",color:C.inkFaint}}>{l}</div></div>))}</div>
    <div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".09em",textTransform:"uppercase",color:C.inkFaint,padding:"0 8px 10px"}}>Incoming · Today</div>
-   {FAXES.map((f,i)=>{const a=f.id===sel;const x=DISPOSITION[f.disposition];return(<button key={f.id} onClick={()=>setSel(f.id)} style={{display:"block",width:"100%",textAlign:"left",cursor:"pointer",padding:"13px 14px",marginBottom:8,borderRadius:9,border:`1px solid ${a?C.teal:C.line}`,background:a?C.card:"transparent",borderLeft:`3px solid ${a?x.color:"transparent"}`,animation:"fadeUp .4s ease both",animationDelay:`${.05*i}s`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}><span style={{fontFamily:C.sans,fontSize:10.5,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",color:C.teal}}>{f.typeLabel}</span><span style={{width:8,height:8,borderRadius:"50%",background:x.color}}/></div><div style={{fontFamily:C.display,fontSize:16,color:C.ink}}>{f.patient}</div><div style={{fontFamily:C.sans,fontSize:11.5,color:C.inkFaint,marginTop:3}}>{f.from}</div></button>);})}
-   <div style={{marginTop:14,padding:"14px",border:`1px dashed ${C.line}`,borderRadius:9,textAlign:"center"}}><div style={{fontFamily:C.sans,fontSize:12,color:C.inkSoft,marginBottom:8}}>Drop a fax to process</div><button style={{fontFamily:C.sans,fontSize:12,fontWeight:600,color:C.card,background:C.tealDeep,border:"none",borderRadius:7,padding:"8px 16px",cursor:"pointer"}}>Upload PDF / image</button></div>
+   {FAXES.map((f,i)=>{const a=f.id===sel;const x=DISPOSITION[f.disposition];return(<button key={f.id} onClick={()=>{setSel(f.id);setUp(null);setUpErr(null);}} style={{display:"block",width:"100%",textAlign:"left",cursor:"pointer",padding:"13px 14px",marginBottom:8,borderRadius:9,border:`1px solid ${a?C.teal:C.line}`,background:a?C.card:"transparent",borderLeft:`3px solid ${a?x.color:"transparent"}`,animation:"fadeUp .4s ease both",animationDelay:`${.05*i}s`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}><span style={{fontFamily:C.sans,fontSize:10.5,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",color:C.teal}}>{f.typeLabel}</span><span style={{width:8,height:8,borderRadius:"50%",background:x.color}}/></div><div style={{fontFamily:C.display,fontSize:16,color:C.ink}}>{f.patient}</div><div style={{fontFamily:C.sans,fontSize:11.5,color:C.inkFaint,marginTop:3}}>{f.from}</div></button>);})}
+   <div style={{marginTop:14,padding:"14px",border:`1px dashed ${C.line}`,borderRadius:9,textAlign:"center"}}>
+    <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.tiff,.tif" style={{display:"none"}} onChange={e=>{const f=e.target.files&&e.target.files[0];e.target.value="";doUpload(f);}}/>
+    <div style={{fontFamily:C.sans,fontSize:12,color:C.inkSoft,marginBottom:8}}>{upBusy?"Processing through the live pipeline…":"Drop a fax to process"}</div>
+    <button disabled={upBusy} onClick={()=>fileRef.current&&fileRef.current.click()} style={{fontFamily:C.sans,fontSize:12,fontWeight:600,color:C.card,background:upBusy?C.inkFaint:C.tealDeep,border:"none",borderRadius:7,padding:"8px 16px",cursor:upBusy?"default":"pointer"}}>{upBusy?"Uploading…":"Upload PDF / image"}</button>
+    {upErr&&<div style={{marginTop:8,fontFamily:C.mono,fontSize:11,color:C.red,wordBreak:"break-word"}}>{upErr}</div>}
+   </div>
   </aside>
-  <main key={sel} style={{padding:"28px 40px",animation:"panelIn .32s ease both",maxWidth:860}}>
+  <main key={up?"upload":sel} style={{padding:"28px 40px",animation:"panelIn .32s ease both",maxWidth:860}}>
+   {up?<UploadedResult result={up} onClear={()=>setUp(null)}/>:(<>
    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20}}><div><div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:C.teal,marginBottom:6}}>{fax.typeLabel}</div><h1 style={{fontFamily:C.display,fontSize:28,fontWeight:600,margin:0}}>{fax.patient}</h1><div style={{fontFamily:C.sans,fontSize:13,color:C.inkSoft,marginTop:6}}>From {fax.from} · received {fax.received}</div></div><Disposition d={fax.disposition}/></div>
    <div style={{display:"flex",alignItems:"center",gap:14,marginTop:20,padding:"14px 18px",background:C.card,border:`1px solid ${C.line}`,borderRadius:9}}><span style={{fontFamily:C.sans,fontSize:12,color:C.inkSoft}}>Classified as</span><span style={{fontFamily:C.display,fontSize:15,fontWeight:600}}>{fax.classification.label}</span><div style={{flex:1,height:6,background:C.paper,borderRadius:3,overflow:"hidden",marginLeft:8}}><div style={{width:`${fax.classification.confidence*100}%`,height:"100%",background:C.teal,borderRadius:3}}/></div><span style={{fontFamily:C.mono,fontSize:13,color:C.teal,fontWeight:500}}>{(fax.classification.confidence*100).toFixed(0)}%</span></div>
    {fax.callback&&(<div style={{marginTop:16,padding:"16px 18px",background:"rgba(15,110,91,.05)",border:`1px solid rgba(15,110,91,.22)`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}><div><div style={{fontFamily:C.sans,fontSize:13,fontWeight:600,color:C.tealDeep}}>{fax.callback.reason}</div><div style={{fontFamily:C.mono,fontSize:12,color:C.inkSoft,marginTop:3}}>{fax.phone} · up to 3 attempts, 48h apart · PHI-free voicemail</div></div><button onClick={()=>outbound(fax.phone)} style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:C.sans,fontSize:13,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:8,padding:"10px 16px",cursor:"pointer",whiteSpace:"nowrap"}}><PhoneWave/>Initiate callback</button></div>)}
@@ -200,6 +246,7 @@ function Console(){
    <ST>Human review queue</ST>{fax.review.length===0?(<div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px",background:"rgba(47,125,50,.06)",border:`1px solid rgba(47,125,50,.2)`,borderRadius:9}}><span style={{width:8,height:8,borderRadius:"50%",background:C.green}}/><span style={{fontFamily:C.sans,fontSize:13}}>Nothing flagged. {fax.note}</span></div>):(<div style={{border:`1px solid ${C.line}`,borderRadius:9,overflow:"hidden"}}>{fax.review.map((r,i)=>(<div key={r.field} style={{display:"flex",gap:14,padding:"13px 16px",alignItems:"baseline",borderTop:i?`1px solid ${C.line}`:"none",background:C.card}}><span style={{fontFamily:C.mono,fontSize:13,color:C.red,fontWeight:500,minWidth:130}}>{r.field}</span><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{r.reason}</span></div>))}</div>)}
    {fax.denyBack&&(<><ST>Deny-back letter</ST><DenyBackCard patient={fax.patient} missing={fax.denyBack}/></>)}
    <div style={{height:60}}/>
+   </>)}
   </main>
   {call&&<CallDock call={call} onEnd={end}/>}
  </div>);
