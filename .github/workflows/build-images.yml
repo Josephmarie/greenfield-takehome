@@ -1,0 +1,45 @@
+name: build-images
+
+# Builds container images for both services and pushes them to GitHub Container
+# Registry (ghcr.io). Render then deploys from these image URLs, which avoids
+# needing Render's GitHub App connected to this private repo.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "voice-agent/**"
+      - "greenfield-ocr/**"
+      - ".github/workflows/build-images.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: greenfield-voice-agent
+            context: voice-agent
+          - name: greenfield-ocr
+            context: greenfield-ocr
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.context }}
+          push: true
+          tags: ghcr.io/josephmarie/${{ matrix.name }}:latest
