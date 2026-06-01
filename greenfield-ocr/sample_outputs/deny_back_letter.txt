@@ -1,0 +1,22 @@
+Greenfield Cardiology
+450 Market Street, Suite 300, San Francisco, CA 94105
+Phone: 415-555-0120  |  Fax: 415-555-0121
+Date: 05/31/2026
+
+To: Dr. Michael Torres, MD
+Re: Incomplete referral - James Patterson (DOB 04/22/1958)
+
+Thank you for your referral. We are unable to process it as received because
+the following required field(s) are missing or could not be verified:
+
+  - Group number
+  - Referring provider NPI
+
+Please resubmit the referral with the item(s) above completed and we will
+schedule the patient promptly. If you have questions, contact our referral
+coordinator at 415-555-0120.
+
+This referral has been held and was not entered into scheduling.
+
+Greenfield Cardiology
+Referral Coordination

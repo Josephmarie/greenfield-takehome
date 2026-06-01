@@ -1,0 +1,85 @@
+{
+  "source": "examples/Fax-Referral.pdf",
+  "classification": {
+    "doc_type": "referral",
+    "confidence": 0.99,
+    "reasoning": "Document is explicitly titled 'Consultation / Referral Request' and contains referring provider, receiving provider, patient information, and reason for referral fields."
+  },
+  "extracted": {
+    "patient_name": {
+      "value": "James Patterson",
+      "source_quote": "Patient Name: James Patterson",
+      "confidence": "high",
+      "notes": null
+    },
+    "dob": {
+      "value": "04/22/1958",
+      "source_quote": "Date of Birth: 04/22/1958",
+      "confidence": "high",
+      "notes": null
+    },
+    "phone": {
+      "value": "(415) 555-7892",
+      "source_quote": "Phone: (415) 555-7892",
+      "confidence": "high",
+      "notes": null
+    },
+    "insurance_carrier": {
+      "value": "Aetna PPO",
+      "source_quote": "Insurance Carrier: Aetna PPO",
+      "confidence": "high",
+      "notes": null
+    },
+    "member_id": {
+      "value": "AET-992847162",
+      "source_quote": "Member ID: AET-992847162",
+      "confidence": "high",
+      "notes": null
+    },
+    "group_number": {
+      "value": null,
+      "source_quote": null,
+      "confidence": "high",
+      "notes": "Field explicitly left blank: [FIELD LEFT BLANK]"
+    },
+    "referring_provider_name": {
+      "value": "Dr. Michael Torres, MD",
+      "source_quote": "Referring Provider: Dr. Michael Torres, MD",
+      "confidence": "high",
+      "notes": null
+    },
+    "referring_provider_npi": {
+      "value": null,
+      "source_quote": null,
+      "confidence": "high",
+      "notes": "Field explicitly left blank: [FIELD LEFT BLANK]"
+    },
+    "reason_for_referral": {
+      "value": "Exertional chest pain with shortness of breath on minimal exertion (onset ~3 weeks ago, progressive). Patient presented 05/20/2026 with complaints of chest tightness on walking one flight of stairs. Resting EKG showed non-specific ST-segment changes in leads V4-V5. No prior cardiac history. BP 148/92. Requested Service: Cardiology consultation + stress test evaluation",
+      "source_quote": "Chief Complaint: Exertional chest pain with shortness of breath on minimal exertion (onset ~3 weeks ago, progressive)\nClinical Notes: Patient presented 05/20/2026 with complaints of chest tightness on walking one flight of stairs. Resting EKG showed non-specific ST-segment changes in leads V4-V5. No prior cardiac history. BP 148/92.\nRequested Service: Cardiology consultation + stress test evaluation",
+      "confidence": "high",
+      "notes": null
+    },
+    "urgency": {
+      "value": "ROUTINE",
+      "source_quote": "Urgency: [ ] STAT [X] ROUTINE [ ] URGENT",
+      "confidence": "high",
+      "notes": null
+    }
+  },
+  "review_queue": [
+    {
+      "field": "group_number",
+      "status": "missing",
+      "reason": "no value found"
+    },
+    {
+      "field": "referring_provider_npi",
+      "status": "missing",
+      "reason": "no value found"
+    }
+  ],
+  "deny_back_letter": "Greenfield Cardiology\n450 Market Street, Suite 300, San Francisco, CA 94105\nPhone: 415-555-0120  |  Fax: 415-555-0121\nDate: 05/31/2026\n\nTo: Dr. Michael Torres, MD\nRe: Incomplete referral - James Patterson (DOB 04/22/1958)\n\nThank you for your referral. We are unable to process it as received because\nthe following required field(s) are missing or could not be verified:\n\n  - Group number\n  - Referring provider NPI\n\nPlease resubmit the referral with the item(s) above completed and we will\nschedule the patient promptly. If you have questions, contact our referral\ncoordinator at 415-555-0120.\n\nThis referral has been held and was not entered into scheduling.\n\nGreenfield Cardiology\nReferral Coordination\n",
+  "pushed_downstream": false,
+  "halt_reason": "referral missing required fields; deny-back generated"
+}

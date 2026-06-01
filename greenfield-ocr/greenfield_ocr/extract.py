@@ -33,6 +33,7 @@ def _image_block(image_b64: str) -> dict:
 def classify(image_b64: str) -> Classification:
     resp = _client().messages.create(
         model=MODEL,
+        temperature=0,
         max_tokens=300,
         messages=[{"role": "user", "content": [_image_block(image_b64),
                                                {"type": "text", "text": CLASSIFY_PROMPT}]}],
@@ -47,6 +48,7 @@ def extract_raw(image_b64: str, doc_type: str) -> dict:
     tool = TOOLS[doc_type]
     resp = _client().messages.create(
         model=MODEL,
+        temperature=0,
         max_tokens=3000,
         system=[{
             "type": "text",

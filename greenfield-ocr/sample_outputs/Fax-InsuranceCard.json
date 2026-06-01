@@ -1,0 +1,50 @@
+{
+  "source": "examples/Fax-InsuranceCard.pdf",
+  "classification": {
+    "doc_type": "insurance_card",
+    "confidence": 0.99,
+    "reasoning": "The fax explicitly transmits a Cigna insurance card (front and back) with member ID, group number, benefits summary, and claims address for an upcoming cardiology appointment."
+  },
+  "extracted": {
+    "member_name": {
+      "value": "GONZALEZ, MARIA",
+      "source_quote": "Member Name: GONZALEZ, MARIA",
+      "confidence": "high",
+      "notes": null
+    },
+    "member_id": {
+      "value": "CIG-4471829304",
+      "source_quote": "Member ID: CIG-4471829304",
+      "confidence": "high",
+      "notes": null
+    },
+    "group_number": {
+      "value": "00456781",
+      "source_quote": "Group Number: 00456781",
+      "confidence": "high",
+      "notes": null
+    },
+    "payer_id": {
+      "value": "62308",
+      "source_quote": "Payer ID: 62308",
+      "confidence": "high",
+      "notes": null
+    },
+    "copay_specialist": {
+      "value": "$60",
+      "source_quote": "Copay \u2013 Specialist: $60",
+      "confidence": "high",
+      "notes": null
+    },
+    "effective_date": {
+      "value": "01/01/2026",
+      "source_quote": "Effective: 01/01/2026",
+      "confidence": "high",
+      "notes": null
+    }
+  },
+  "review_queue": [],
+  "deny_back_letter": null,
+  "pushed_downstream": true,
+  "halt_reason": null
+}
