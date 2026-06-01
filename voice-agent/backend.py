@@ -155,15 +155,28 @@ try:
 except Exception:               # keep the tool server usable without call creds
     _retell = None
 
-AGENT_ID = os.environ.get("RETELL_AGENT_ID")
+AGENT_ID = os.environ.get("RETELL_AGENT_ID")                     # front desk (inbound)
+OUTBOUND_AGENT_ID = os.environ.get("RETELL_OUTBOUND_AGENT_ID")   # outbound callback
 FROM_NUMBER = os.environ.get("RETELL_FROM_NUMBER")
+
+# Named agents the browser can start a web call against.
+AGENTS = {"front_desk": AGENT_ID, "outbound": OUTBOUND_AGENT_ID or AGENT_ID}
+
+
+class WebCallReq(BaseModel):
+    agent: str | None = None  # "front_desk" (default) | "outbound"
 
 
 @app.post("/calls/web")
-def create_web_call():
-    """Mint a web-call token the browser SDK connects to."""
-    call = _retell.call.create_web_call(agent_id=AGENT_ID)
-    return {"access_token": call.access_token, "call_id": call.call_id}
+def create_web_call(req: WebCallReq | None = None):
+    """Mint a web-call token the browser SDK connects to.
+
+    Body is optional: {"agent": "front_desk"|"outbound"}. Defaults to front desk.
+    """
+    key = (req.agent if req else None) or "front_desk"
+    agent_id = AGENTS.get(key) or AGENT_ID
+    call = _retell.call.create_web_call(agent_id=agent_id)
+    return {"access_token": call.access_token, "call_id": call.call_id, "agent": key}
 
 
 class OutboundReq(BaseModel):

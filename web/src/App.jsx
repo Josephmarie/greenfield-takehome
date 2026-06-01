@@ -25,6 +25,37 @@ const GRAIN="data:image/svg+xml;utf8,"+encodeURIComponent(`<svg xmlns='http://ww
 const Ekg=({color=C.teal,w=30})=>(<svg width={w} height={w*0.5} viewBox="0 0 60 30" fill="none"><path d="M0 15 H14 L19 5 L25 25 L31 15 H60" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>);
 const PhoneWave=({color="#fff",s=15})=>(<svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M5 4h3l2 5-2 1a11 11 0 005 5l1-2 5 2v3a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" stroke={color} strokeWidth="1.8" strokeLinejoin="round"/></svg>);
 
+// ── live Retell web call ─────────────────────────────────────────────────────
+// Mints a web-call token from the backend (API_BASE) and drives a real
+// browser<->agent call via retell-client-js-sdk. status: idle|connecting|live|
+// ended|error. transcript: [{who:"agent"|"user", text}].
+function useRetellCall(){
+ const[status,setStatus]=useState("idle");const[seconds,setSeconds]=useState(0);
+ const[transcript,setTranscript]=useState([]);const[error,setError]=useState(null);
+ const clientRef=useRef(null);const tickRef=useRef(null);
+ const startTick=()=>{if(tickRef.current)return;tickRef.current=setInterval(()=>setSeconds(s=>s+1),1000);};
+ const stopTick=()=>{if(tickRef.current){clearInterval(tickRef.current);tickRef.current=null;}};
+ const start=async(agent)=>{
+  setStatus("connecting");setError(null);setTranscript([]);setSeconds(0);
+  try{
+   const res=await fetch(`${API_BASE}/calls/web`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({agent})});
+   if(!res.ok){let m=`HTTP ${res.status}`;try{const e=await res.json();if(e.detail)m=typeof e.detail==="string"?e.detail:JSON.stringify(e.detail);}catch{}throw new Error(m);}
+   const {access_token}=await res.json();
+   const mod=await import("retell-client-js-sdk");
+   const client=new mod.RetellWebClient();clientRef.current=client;
+   client.on("call_started",()=>{setStatus("live");startTick();});
+   client.on("call_ended",()=>{setStatus("ended");stopTick();});
+   client.on("error",(e)=>{setError((e&&(e.message||e.toString()))||"call error");setStatus("error");try{client.stopCall();}catch{}stopTick();});
+   client.on("update",(u)=>{if(u&&Array.isArray(u.transcript))setTranscript(u.transcript.map(t=>({who:t.role==="agent"?"agent":"user",text:t.content})));});
+   await client.startCall({accessToken:access_token});
+  }catch(e){setError(e.message||"failed to start call");setStatus("error");stopTick();}
+ };
+ const stop=()=>{const c=clientRef.current;if(c){try{c.stopCall();}catch{}}stopTick();setStatus(s=>(s==="live"||s==="connecting")?"ended":s);};
+ const reset=()=>{const c=clientRef.current;if(c){try{c.stopCall();}catch{}}stopTick();setStatus("idle");setSeconds(0);setTranscript([]);setError(null);};
+ useEffect(()=>()=>{const c=clientRef.current;if(c){try{c.stopCall();}catch{}}stopTick();},[]);
+ return {status,seconds,transcript,error,start,stop,reset};
+}
+
 // ── shared OCR components ────────────────────────────────────────────────────
 function ConfidenceChip({confidence}){const m={high:{t:"High",c:C.green,bg:"rgba(47,125,50,.10)"},medium:{t:"Medium",c:C.amber,bg:"rgba(168,106,18,.12)"},low:{t:"Low",c:C.red,bg:"rgba(166,64,47,.12)"},missing:{t:"Missing",c:C.red,bg:"rgba(166,64,47,.12)"}}[confidence];return(<span style={{fontFamily:C.mono,fontSize:10.5,fontWeight:500,letterSpacing:".04em",textTransform:"uppercase",color:m.c,background:m.bg,padding:"2px 7px",borderRadius:4,whiteSpace:"nowrap"}}>{m.t}</span>);}
 function Field({f}){const[open,setOpen]=useState(false);const missing=f.confidence==="missing"||f.value===null;return(<div style={{borderBottom:`1px solid ${C.line}`,padding:"11px 0"}}><div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:16}}><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft,minWidth:150}}>{f.label}</span><span style={{flex:1}}><span style={{fontFamily:C.mono,fontSize:13.5,color:missing?C.red:C.ink,fontStyle:missing?"italic":"normal"}}>{missing?"not found":f.value}</span></span><span style={{display:"flex",alignItems:"center",gap:10}}><ConfidenceChip confidence={f.confidence}/>{f.quote&&<button onClick={()=>setOpen(!open)} style={{border:"none",background:"none",cursor:"pointer",padding:0,fontFamily:C.mono,fontSize:11,color:C.inkFaint,textDecoration:"underline",textUnderlineOffset:2}}>{open?"hide":"source"}</button>}</span></div>{open&&f.quote&&<div style={{marginTop:8,padding:"8px 11px",background:C.paper,borderLeft:`2px solid ${C.teal}`,borderRadius:"0 4px 4px 0",fontFamily:C.mono,fontSize:12,color:C.inkSoft}}>“{f.quote}”</div>}</div>);}
@@ -106,34 +137,55 @@ function Landing({onCall,go}){
 }
 
 // ── Call screen (inbound) ────────────────────────────────────────────────────
-function CallScreen({onFinish,onCancel}){
- const[status,setStatus]=useState("connecting");const[secs,setSecs]=useState(0);const[tr,setTr]=useState([]);
- const timers=useRef([]);const tick=useRef(null);const bodyRef=useRef(null);
- useEffect(()=>{
-  tick.current=setInterval(()=>setSecs(s=>s+1),1000);
-  BOOKING.forEach(step=>timers.current.push(setTimeout(()=>{if(step.status)setStatus(step.status);if(step.line)setTr(t=>[...t,step.line]);if(step.status==="ended"&&tick.current){clearInterval(tick.current);tick.current=null;}},step.at)));
-  return()=>{timers.current.forEach(clearTimeout);if(tick.current)clearInterval(tick.current);};
- },[]);
+// Presentational call UI; driven by either the simulated timeline (CallScreen)
+// or a real Retell web call (LiveCallScreen).
+function CallView({statusKey,secs,tr,ended,error,onCancel,onEnd,endLabel}){
+ const s=CALL_STATUS[statusKey]||CALL_STATUS.connecting;const mm=String(Math.floor(secs/60)).padStart(2,"0");const ss=String(secs%60).padStart(2,"0");
+ const bodyRef=useRef(null);
  useEffect(()=>{if(bodyRef.current)bodyRef.current.scrollTop=bodyRef.current.scrollHeight;},[tr.length]);
- const s=CALL_STATUS[status];const mm=String(Math.floor(secs/60)).padStart(2,"0");const ss=String(secs%60).padStart(2,"0");
- const ended=status==="ended";
  return(<div style={{minHeight:"calc(100vh - 69px)",display:"flex",flexDirection:"column",alignItems:"center",padding:"40px 20px 60px",animation:"panelIn .35s ease both"}}>
   <div style={{position:"relative",width:150,height:150,display:"flex",alignItems:"center",justifyContent:"center",marginTop:20}}>
    {!ended&&[0,1].map(i=>(<div key={i} style={{position:"absolute",width:110,height:110,borderRadius:"50%",border:`1.5px solid ${s.c}`,animation:`ring 2.4s ease-out ${i*1.2}s infinite`}}/>))}
    <div style={{width:110,height:110,borderRadius:"50%",background:C.tealDeep,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1}}><Ekg color="#EAF3EF" w={54}/></div>
   </div>
   <div style={{display:"flex",alignItems:"center",gap:9,marginTop:22}}><span style={{width:9,height:9,borderRadius:"50%",background:s.c,animation:ended?"none":"pulse 1.4s ease infinite"}}/><span style={{fontFamily:C.sans,fontSize:14,fontWeight:600,color:s.c}}>{s.t}</span><span style={{fontFamily:C.mono,fontSize:13,color:C.inkFaint,marginLeft:6}}>{mm}:{ss}</span></div>
+  {error&&<div style={{marginTop:10,fontFamily:C.mono,fontSize:12,color:C.red,maxWidth:480,textAlign:"center",wordBreak:"break-word"}}>{error}</div>}
+  {!error&&statusKey==="connecting"&&<div style={{marginTop:8,fontFamily:C.sans,fontSize:12.5,color:C.inkFaint}}>Allow microphone access when prompted…</div>}
   <div ref={bodyRef} style={{width:"100%",maxWidth:560,marginTop:30,maxHeight:"42vh",overflowY:"auto",display:"flex",flexDirection:"column",gap:14}}>
    {tr.map((t,i)=>(<div key={i} style={{alignSelf:t.who==="agent"?"flex-start":"flex-end",maxWidth:"82%",animation:"fadeUp .25s ease both"}}>
     <div style={{fontFamily:C.sans,fontSize:9.5,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:t.who==="agent"?C.teal:C.inkFaint,marginBottom:3,textAlign:t.who==="agent"?"left":"right"}}>{t.who==="agent"?"Front desk":"You"}</div>
     <div style={{fontFamily:C.sans,fontSize:14,lineHeight:1.5,color:C.ink,background:t.who==="agent"?C.card:"rgba(15,110,91,.08)",border:`1px solid ${t.who==="agent"?C.line:"rgba(15,110,91,.2)"}`,padding:"10px 14px",borderRadius:12}}>{t.text}</div>
    </div>))}
+   {tr.length===0&&!error&&<div style={{fontFamily:C.sans,fontSize:13,color:C.inkFaint,textAlign:"center",marginTop:8}}>{statusKey==="live"?"Connected — go ahead and speak.":""}</div>}
   </div>
   <div style={{marginTop:30,display:"flex",gap:12}}>
    {!ended?(<button onClick={onCancel} style={{fontFamily:C.sans,fontSize:14,fontWeight:600,color:"#fff",background:C.red,border:"none",borderRadius:10,padding:"12px 28px",cursor:"pointer"}}>End call</button>)
-   :(<button onClick={()=>onFinish({...CAPTURED,durationLabel:`${mm}:${ss}`,transcript:tr})} style={{fontFamily:C.sans,fontSize:14,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:10,padding:"12px 28px",cursor:"pointer"}}>View call summary →</button>)}
+   :(<button onClick={onEnd} style={{fontFamily:C.sans,fontSize:14,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:10,padding:"12px 28px",cursor:"pointer"}}>{endLabel}</button>)}
   </div>
  </div>);
+}
+
+// Simulated inbound call (demo lifecycle from BOOKING).
+function CallScreen({onFinish,onCancel}){
+ const[status,setStatus]=useState("connecting");const[secs,setSecs]=useState(0);const[tr,setTr]=useState([]);
+ const timers=useRef([]);const tick=useRef(null);
+ useEffect(()=>{
+  tick.current=setInterval(()=>setSecs(s=>s+1),1000);
+  BOOKING.forEach(step=>timers.current.push(setTimeout(()=>{if(step.status)setStatus(step.status);if(step.line)setTr(t=>[...t,step.line]);if(step.status==="ended"&&tick.current){clearInterval(tick.current);tick.current=null;}},step.at)));
+  return()=>{timers.current.forEach(clearTimeout);if(tick.current)clearInterval(tick.current);};
+ },[]);
+ const ended=status==="ended";const mm=String(Math.floor(secs/60)).padStart(2,"0");const ss=String(secs%60).padStart(2,"0");
+ return <CallView statusKey={status} secs={secs} tr={tr} ended={ended} onCancel={onCancel} onEnd={()=>onFinish({...CAPTURED,durationLabel:`${mm}:${ss}`,transcript:tr})} endLabel="View call summary →"/>;
+}
+
+// Real browser web call to the front-desk agent (mic, no phone).
+function LiveCallScreen({onExit}){
+ const call=useRetellCall();
+ useEffect(()=>{call.start("front_desk");return()=>call.reset();},[]);
+ const map={idle:"connecting",connecting:"connecting",live:"live",ended:"ended",error:"ended"};
+ const ended=call.status==="ended"||call.status==="error";
+ return <CallView statusKey={map[call.status]||"connecting"} secs={call.seconds} tr={call.transcript} ended={ended} error={call.error}
+   onCancel={()=>call.stop()} onEnd={onExit} endLabel="Done"/>;
 }
 
 // ── Summary (editable) ───────────────────────────────────────────────────────
@@ -174,6 +226,8 @@ function CallDock({call,onEnd}){const s=CALL_STATUS[call.status]||CALL_STATUS.di
  return(<div style={{position:"fixed",right:26,bottom:26,width:360,background:C.card,border:`1px solid ${C.line}`,borderRadius:14,boxShadow:"0 12px 40px rgba(10,74,62,.18)",overflow:"hidden",zIndex:50,animation:"fadeUp .3s ease both"}}>
   <div style={{padding:"14px 18px",background:C.tealDeep,display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{display:"flex",alignItems:"center",gap:9}}><Ekg color="#EAF3EF" w={22}/><span style={{fontFamily:C.sans,fontSize:13,fontWeight:600,color:"#EAF3EF"}}>Outbound callback</span></span><span style={{fontFamily:C.mono,fontSize:12,color:"#BFE0D6"}}>{mm}:{ss}</span></div>
   <div style={{padding:"10px 18px",display:"flex",alignItems:"center",gap:8,borderBottom:`1px solid ${C.line}`}}><span style={{width:8,height:8,borderRadius:"50%",background:s.c,animation:call.status==="ended"?"none":"pulse 1.4s ease infinite"}}/><span style={{fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:s.c}}>{s.t}</span>{call.to&&<span style={{fontFamily:C.mono,fontSize:11.5,color:C.inkFaint,marginLeft:"auto"}}>{call.to}</span>}</div>
+  {call.error&&<div style={{padding:"8px 18px",fontFamily:C.mono,fontSize:11,color:C.red,wordBreak:"break-word"}}>{call.error}</div>}
+  {!call.error&&call.status==="connecting"&&<div style={{padding:"8px 18px",fontFamily:C.sans,fontSize:11.5,color:C.inkFaint}}>Allow microphone access when prompted…</div>}
   <div ref={b} style={{maxHeight:200,overflowY:"auto",padding:"12px 18px",display:"flex",flexDirection:"column",gap:10}}>{call.transcript.map((t,i)=>{const sys=t.who==="system";return(<div key={i} style={{animation:"fadeUp .25s ease both"}}>{!sys&&<div style={{fontFamily:C.sans,fontSize:9.5,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:t.who==="agent"?C.teal:C.inkFaint,marginBottom:2}}>{t.who==="agent"?"Agent":"Caller"}</div>}<div style={{fontFamily:sys?C.mono:C.sans,fontSize:sys?11.5:13,color:sys?C.amber:C.ink,fontStyle:sys?"italic":"normal",lineHeight:1.5}}>{t.text}</div></div>);})}</div>
   <div style={{padding:"12px 18px",borderTop:`1px solid ${C.line}`}}><button onClick={onEnd} style={{width:"100%",fontFamily:C.sans,fontSize:13,fontWeight:600,color:call.status==="ended"?C.inkSoft:"#fff",background:call.status==="ended"?C.paper:C.red,border:call.status==="ended"?`1px solid ${C.line}`:"none",borderRadius:8,padding:"10px",cursor:"pointer"}}>{call.status==="ended"?"Close":"End call"}</button></div>
  </div>);
@@ -209,6 +263,7 @@ function UploadedResult({result,onClear}){
 
 function Console(){
  const[sel,setSel]=useState(FAXES[0].id);const[call,setCall]=useState(null);const timers=useRef([]);const tick=useRef(null);
+ const live=useRetellCall();const[liveTo,setLiveTo]=useState(null);const[dockOpen,setDockOpen]=useState(false);
  const[up,setUp]=useState(null);const[upBusy,setUpBusy]=useState(false);const[upErr,setUpErr]=useState(null);const fileRef=useRef(null);
  const doUpload=async(file)=>{
   if(!file)return;setUpErr(null);setUpBusy(true);setUp(null);
@@ -222,8 +277,15 @@ function Console(){
  const fax=FAXES.find(f=>f.id===sel);const counts={cleared:FAXES.filter(f=>f.disposition==="cleared").length,flagged:FAXES.filter(f=>f.disposition==="flagged").length,held:FAXES.filter(f=>f.disposition==="held").length};
  const clear=()=>{timers.current.forEach(clearTimeout);timers.current=[];if(tick.current){clearInterval(tick.current);tick.current=null;}};
  useEffect(()=>clear,[]);
- const outbound=(to)=>{setCall({status:"dialing",seconds:0,transcript:[],to});tick.current=setInterval(()=>setCall(c=>c&&c.status!=="ended"?{...c,seconds:c.seconds+1}:c),1000);OUTBOUND.forEach(st=>timers.current.push(setTimeout(()=>setCall(c=>{if(!c)return c;const n={...c};if(st.status)n.status=st.status;if(st.line)n.transcript=[...c.transcript,st.line];if(st.status==="ended"&&tick.current){clearInterval(tick.current);tick.current=null;}return n;}),st.at)));};
+ // Real outbound web call to the outbound agent (talk from the browser, no phone).
+ const outboundLive=(to)=>{live.reset();setLiveTo(to);setDockOpen(true);live.start("outbound");};
+ // Simulated outbound (demo: dial → voicemail → PHI-free message).
+ const outboundSim=(to)=>{setCall({status:"dialing",seconds:0,transcript:[],to});tick.current=setInterval(()=>setCall(c=>c&&c.status!=="ended"?{...c,seconds:c.seconds+1}:c),1000);OUTBOUND.forEach(st=>timers.current.push(setTimeout(()=>setCall(c=>{if(!c)return c;const n={...c};if(st.status)n.status=st.status;if(st.line)n.transcript=[...c.transcript,st.line];if(st.status==="ended"&&tick.current){clearInterval(tick.current);tick.current=null;}return n;}),st.at)));};
+ const outbound=(to)=>LIVE?outboundLive(to):outboundSim(to);
  const end=()=>{clear();setCall(null);};
+ const LMAP={idle:"connecting",connecting:"connecting",live:"live",ended:"ended",error:"ended"};
+ const dockCall=LIVE?(dockOpen?{status:LMAP[live.status]||"connecting",seconds:live.seconds,transcript:live.transcript,to:liveTo,error:live.error}:null):call;
+ const dockEnd=LIVE?(()=>{if(live.status==="live"||live.status==="connecting"){live.stop();}else{setDockOpen(false);live.reset();}}):end;
  return(<div style={{display:"grid",gridTemplateColumns:"320px 1fr",minHeight:"calc(100vh - 69px)"}}>
   <aside style={{borderRight:`1px solid ${C.line}`,padding:"18px 16px"}}>
    <div style={{display:"flex",justifyContent:"space-between",padding:"0 8px 14px"}}>{[["Cleared",counts.cleared,C.green],["Flagged",counts.flagged,C.amber],["Held",counts.held,C.red]].map(([l,n,c])=>(<div key={l} style={{textAlign:"center"}}><div style={{fontFamily:C.mono,fontSize:18,color:c,fontWeight:500}}>{n}</div><div style={{fontFamily:C.sans,fontSize:9,letterSpacing:".06em",textTransform:"uppercase",color:C.inkFaint}}>{l}</div></div>))}</div>
@@ -248,7 +310,7 @@ function Console(){
    <div style={{height:60}}/>
    </>)}
   </main>
-  {call&&<CallDock call={call} onEnd={end}/>}
+  {dockCall&&<CallDock call={dockCall} onEnd={dockEnd}/>}
  </div>);
 }
 
@@ -259,7 +321,9 @@ export default function App(){
   <style>{FONTS}</style>
   <Nav page={page} go={go}/>
   {page==="home"&&<Landing onCall={()=>go("call")} go={go}/>}
-  {page==="call"&&<CallScreen onCancel={()=>go("home")} onFinish={c=>{setCaptured(c);go("summary");}}/>}
+  {page==="call"&&(LIVE
+    ? <LiveCallScreen onExit={()=>go("home")}/>
+    : <CallScreen onCancel={()=>go("home")} onFinish={c=>{setCaptured(c);go("summary");}}/>)}
   {page==="summary"&&<Summary captured={captured||CAPTURED} go={go}/>}
   {page==="console"&&<Console/>}
  </div>);
