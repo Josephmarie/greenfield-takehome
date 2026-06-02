@@ -77,21 +77,86 @@ def check_availability(req: AvailabilityReq):
     return {"provider": req.provider, "location": LOCATIONS[loc], "slots": slots}
 
 
+# ── Google Calendar integration ──────────────────────────────────────────────
+GOOGLE_CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID")
+GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar"]
+APPT_DURATION_MIN = 30  # default duration for all appointment types
+# Prefer the Render secret file in production; fall back to the local dev copy.
+GOOGLE_CRED_PATHS = [
+    "/etc/secrets/google_credentials.json",
+    os.path.join(os.path.dirname(__file__), "google_credentials.json"),
+]
+
+
+def _calendar_service():
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build as _gbuild
+    path = next((p for p in GOOGLE_CRED_PATHS if os.path.exists(p)), None)
+    if not path:
+        raise RuntimeError("google_credentials.json not found (checked /etc/secrets and local).")
+    creds = service_account.Credentials.from_service_account_file(path, scopes=GOOGLE_SCOPES)
+    return _gbuild("calendar", "v3", credentials=creds, cache_discovery=False)
+
+
+def _parse_slot(slot: str):
+    """Best-effort parse of a human slot string ('Wednesday, June 03 at 10:00 AM')
+    into a naive local datetime; Google handles the timezone via the event."""
+    from dateutil import parser as _dtp
+    now = datetime.now()
+    base = now.replace(hour=10, minute=0, second=0, microsecond=0)
+    try:
+        dt = _dtp.parse((slot or "").replace(" at ", " "), default=base)
+    except Exception:
+        dt = base + timedelta(days=1)
+    if dt < now - timedelta(days=1):  # slot strings omit the year; roll forward
+        dt = dt.replace(year=dt.year + 1)
+    return dt
+
+
 class BookReq(BaseModel):
     patient_name: str
-    dob: str
+    dob: str | None = None
     provider: str
     location: str = "sf"
     slot: str
     reason: str | None = None
+    phone: str | None = None
+    insurance: str | None = None
 
 
 @app.post("/book_appointment")
 def book_appointment(req: BookReq):
     loc = "oakland" if "oak" in req.location.lower() else "sf"
-    conf = f"GC-{abs(hash(req.patient_name + req.slot)) % 100000:05d}"
-    return {"confirmation_id": conf, "provider": req.provider,
-            "location": LOCATIONS[loc], "slot": req.slot}
+    office = LOCATIONS[loc]
+    address = office["address"]  # office address from the KB
+    description = (
+        f"Patient: {req.patient_name or ''}\n"
+        f"DOB: {req.dob or ''}\n"
+        f"Reason: {req.reason or ''}\n"
+        f"Provider: {req.provider or ''}\n"
+        f"Location: {address}\n"
+        f"Phone: {req.phone or ''}\n"
+        f"Insurance: {req.insurance or ''}"
+    )
+    start = _parse_slot(req.slot)
+    end = start + timedelta(minutes=APPT_DURATION_MIN)
+    event_body = {
+        "summary": f"Appointment: {req.patient_name}",
+        "description": description,
+        "location": address,
+        "start": {"dateTime": start.isoformat(), "timeZone": "America/Los_Angeles"},
+        "end": {"dateTime": end.isoformat(), "timeZone": "America/Los_Angeles"},
+    }
+    if not GOOGLE_CALENDAR_ID:
+        raise HTTPException(status_code=500, detail="GOOGLE_CALENDAR_ID not configured.")
+    try:
+        created = _calendar_service().events().insert(
+            calendarId=GOOGLE_CALENDAR_ID, body=event_body).execute()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Calendar event creation failed: {exc}") from exc
+    # Return the real Google Calendar event id as the confirmation number.
+    return {"confirmation_id": created["id"], "provider": req.provider,
+            "location": office, "slot": req.slot, "event_link": created.get("htmlLink")}
 
 
 @app.post("/lookup_location")
