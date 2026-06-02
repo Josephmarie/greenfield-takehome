@@ -7,3 +7,4 @@ node_modules/
 .claude/
 cloudflared-linux-amd64.deb
 *.deb
+voice-agent/google_credentials.json
