@@ -54,22 +54,28 @@ tests on safety-critical paths.
 
 ## Q2. Prompt caching
 
-**OCR pipeline (where I applied it).** The extraction rules and the per-type tool
-schema are identical for every document of a type; the page image is the only
-variable input. So both carry `cache_control: {"type": "ephemeral"}` and sit at
-the front of the request (`extract.py`). Across a batch — or the three documents
-in this exercise — the second and third reads hit the cache instead of
-reprocessing the schema. The cached prefix is the large, stable majority of the
-input; the expected effect is roughly a 90% cost reduction on those cached input
-tokens, with the cache write costing ~25% extra on first use.
+**OCR pipeline (already implemented).** Caching is live in
+`greenfield_ocr/extract.py`: both the `EXTRACTION_RULES` system block and the
+per-type tool schema carry `cache_control: {"type": "ephemeral"}`, and they sit
+at the front of the request ahead of the only variable input — the page image.
+Across a batch, or the three documents in this exercise, the second and third
+reads hit the cached prefix instead of reprocessing the rules and the schema.
+That prefix is the large, stable majority of the input, so the expected effect is
+roughly a 90% cost reduction on the cached input tokens, with the cache write
+costing ~25% extra on first use. The ephemeral cache defaults to a 5-minute TTL,
+which already covers a single batch run; for production at scale — where
+documents arrive continuously — the TTL can be extended to 3600 seconds (one
+hour) so the cached prefix survives across batches and quiet periods.
 
-**Voice agent (bigger latency win).** The system prompt here is large — the full
-KB, the safety overrides, the PHI rules — and identical on every turn of every
-call. Cache it at the boundary before the live conversation turns. The mechanism
-is the same `cache_control` marker; the payoff is different. In voice the
-~85% reduction in time-to-first-token on the cached prefix matters more than the
-cost — it shows up as the agent starting to speak sooner, which is the difference
-between feeling natural and feeling like an IVR.
+**Voice agent system prompt (the second caching location).** The system prompt
+here is large — the full KB, the safety overrides, the PHI rules — and identical
+on every turn of every call. Marking it with the same `cache_control` ephemeral
+block caches it at the boundary before the live conversation turns. The mechanism
+is identical; the payoff differs. In voice the ~85% reduction in time-to-first-token
+on the cached prefix matters more than the cost — it shows up as the agent
+starting to speak sooner, the difference between feeling natural and feeling like
+an IVR. Here too the extended 3600-second TTL helps, since back-to-back calls
+reuse the same cached system prompt.
 
 ## Q3. Tooling split
 
