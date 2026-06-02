@@ -244,13 +244,29 @@ function CallDock({call,onEnd}){const s=CALL_STATUS[call.status]||CALL_STATUS.di
  </div>);
 }
 const OUTBOUND=[{at:0,status:"dialing"},{at:1000,status:"ringing"},{at:3200,status:"voicemail",line:{who:"system",text:"Voicemail detected — leaving PHI-free message only"}},{at:4400,line:{who:"agent",text:"This is a message from Greenfield Cardiology. Please call us back at 415-555-0120. Thank you."}},{at:7600,status:"ended",line:{who:"system",text:"Attempt 1 of 3 logged · next attempt eligible in 48 hours"}}];
+// ── live OCR result rendering helpers ────────────────────────────────────────
+const prettyLabel=k=>String(k).replace(/_/g," ").replace(/\b\w/g,m=>m.toUpperCase());
+const KNOWN_CONF={high:1,medium:1,low:1,missing:1};
+const normConf=(conf,val)=>(val===null||val===undefined||val==="")?"missing":(KNOWN_CONF[conf]?conf:"medium");
+const isFieldObj=v=>v&&typeof v==="object"&&!Array.isArray(v)&&("value" in v||"confidence" in v||"source_quote" in v);
+const isLabAnalyte=x=>x&&typeof x==="object"&&("reference_range" in x||"computed_flag" in x||("name" in x&&"value" in x));
+// Map a pipeline analyte to the shape LabTable expects.
+const mapLab=a=>({c:a.name,v:a.value,unit:a.unit,range:a.reference_range,out:a.in_range===false,computed:a.computed_flag,labFlag:!!a.lab_reported_flag,quote:a.source_quote});
+
 // Renders the live result returned by the OCR pipeline's POST /process.
 function UploadedResult({result,onClear}){
  const c=result.classification||{};
  const conf=typeof c.confidence==="number"?c.confidence:null;
- const ext=result.extracted||null;
+ const ext=result.extracted||{};
  const review=result.review_queue||[];
- const fmt=v=>v===null||v===undefined?"not found":(typeof v==="object"?JSON.stringify(v):String(v));
+ const fieldRows=[],labGroups=[],otherRows=[];
+ for(const [k,v] of Object.entries(ext)){
+  if(Array.isArray(v)&&v.length&&isLabAnalyte(v[0]))labGroups.push([k,v]);
+  else if(isFieldObj(v))fieldRows.push({label:prettyLabel(k),value:v.value,confidence:normConf(v.confidence,v.value),quote:v.source_quote});
+  else if(Array.isArray(v))otherRows.push([prettyLabel(k),v.join(", ")]);
+  else if(v&&typeof v==="object")otherRows.push([prettyLabel(k),JSON.stringify(v)]);
+  else otherRows.push([prettyLabel(k),v]);
+ }
  return(<div style={{animation:"panelIn .3s ease both"}}>
   <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20}}>
    <div><div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:C.teal,marginBottom:6}}>Uploaded · live pipeline</div>
@@ -264,10 +280,19 @@ function UploadedResult({result,onClear}){
    <span style={{fontFamily:C.mono,fontSize:13,color:C.teal,fontWeight:500}}>{(conf*100).toFixed(0)}%</span></>}
   </div>
   {result.halt_reason&&<div style={{marginTop:14,padding:"12px 16px",background:"rgba(168,106,18,.08)",border:`1px solid rgba(168,106,18,.3)`,borderRadius:9,fontFamily:C.sans,fontSize:13,color:C.amber}}>{result.halt_reason}</div>}
-  {ext&&(<><ST>Extracted fields</ST><div style={{border:`1px solid ${C.line}`,borderRadius:9,overflow:"hidden"}}>{Object.entries(ext).map(([k,v],i)=>(<div key={k} style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:14,padding:"11px 16px",borderTop:i?`1px solid ${C.line}`:"none",background:C.card}}><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{k}</span><span style={{fontFamily:C.mono,fontSize:13,color:(v===null||v===undefined)?C.red:C.ink,fontStyle:(v===null||v===undefined)?"italic":"normal",wordBreak:"break-word"}}>{fmt(v)}</span></div>))}</div></>)}
-  <ST>Human review queue</ST>{review.length===0?(<div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px",background:"rgba(47,125,50,.06)",border:`1px solid rgba(47,125,50,.2)`,borderRadius:9}}><span style={{width:8,height:8,borderRadius:"50%",background:C.green}}/><span style={{fontFamily:C.sans,fontSize:13}}>Nothing flagged.</span></div>):(<div style={{border:`1px solid ${C.line}`,borderRadius:9,overflow:"hidden"}}>{review.map((r,i)=>(<div key={i} style={{display:"flex",gap:14,padding:"13px 16px",alignItems:"baseline",borderTop:i?`1px solid ${C.line}`:"none",background:C.card}}><span style={{fontFamily:C.mono,fontSize:13,color:C.red,fontWeight:500,minWidth:130}}>{r.field}</span><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{r.reason||r.status}</span></div>))}</div>)}
-  {result.deny_back_letter&&(<><ST>Deny-back letter</ST><pre style={{marginTop:6,padding:"20px 22px",background:C.card,border:`1px solid ${C.line}`,borderRadius:9,fontFamily:C.mono,fontSize:12.5,color:C.ink,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{result.deny_back_letter}</pre></>)}
-  <div style={{marginTop:18,fontFamily:C.mono,fontSize:12,color:result.pushed_downstream?C.green:C.amber}}>Pushed downstream: {String(result.pushed_downstream)}</div>
+  {(fieldRows.length>0||otherRows.length>0)&&(<><ST>Extracted fields</ST>
+   <div>{fieldRows.map((f,i)=><Field key={"f"+i} f={f}/>)}
+    {otherRows.map(([k,v],i)=>(<div key={"o"+i} style={{display:"grid",gridTemplateColumns:"180px 1fr",gap:16,padding:"11px 0",borderBottom:`1px solid ${C.line}`,alignItems:"baseline"}}><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{k}</span><span style={{fontFamily:C.mono,fontSize:13.5,color:(v===null||v===undefined||v==="")?C.red:C.ink,fontStyle:(v===null||v===undefined||v==="")?"italic":"normal",wordBreak:"break-word"}}>{(v===null||v===undefined||v==="")?"not found":String(v)}</span></div>))}</div></>)}
+  {labGroups.map(([k,arr])=>(<React.Fragment key={"lab"+k}><ST>{k==="test_values"?"Test results":prettyLabel(k)}</ST><LabTable labs={arr.map(mapLab)}/></React.Fragment>))}
+  <ST>Human review queue {review.length>0&&<span style={{fontFamily:C.mono,fontSize:12,color:C.red}}>({review.length})</span>}</ST>
+  {review.length===0?(<div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px",background:"rgba(47,125,50,.06)",border:`1px solid rgba(47,125,50,.2)`,borderRadius:9}}><span style={{width:8,height:8,borderRadius:"50%",background:C.green}}/><span style={{fontFamily:C.sans,fontSize:13}}>Nothing flagged — all fields extracted cleanly.</span></div>):(<div style={{border:`1px solid ${C.line}`,borderRadius:9,overflow:"hidden"}}>{review.map((r,i)=>(<div key={i} style={{display:"flex",gap:14,padding:"13px 16px",alignItems:"baseline",borderTop:i?`1px solid ${C.line}`:"none",background:C.card}}><span style={{fontFamily:C.mono,fontSize:13,color:C.red,fontWeight:500,minWidth:140,wordBreak:"break-word"}}>{String(r.field||"").replace(/^lab:/,"")}</span><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{r.reason||r.status}</span></div>))}</div>)}
+  {result.deny_back_letter&&(<><ST>Deny-back letter</ST>
+   <div style={{position:"relative",marginTop:6,padding:"26px 28px",background:C.card,border:`1px solid ${C.line}`,borderRadius:8,boxShadow:"0 1px 2px rgba(10,74,62,.04)"}}>
+    <div style={{position:"absolute",top:18,right:18,transform:"rotate(6deg)",border:`2px solid ${C.red}`,color:C.red,fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".08em",padding:"4px 9px",borderRadius:5,opacity:.85}}>HELD · NOT SCHEDULED</div>
+    <div style={{fontFamily:C.sans,fontSize:13,color:C.ink,lineHeight:1.7,whiteSpace:"pre-wrap",wordBreak:"break-word",maxWidth:620}}>{result.deny_back_letter}</div>
+   </div></>)}
+  <div style={{marginTop:22,display:"inline-flex",alignItems:"center",gap:8,fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:result.pushed_downstream?C.green:C.amber,background:result.pushed_downstream?"rgba(47,125,50,.10)":"rgba(168,106,18,.12)",padding:"7px 13px",borderRadius:20}}>
+   <span style={{width:7,height:7,borderRadius:"50%",background:result.pushed_downstream?C.green:C.amber}}/>{result.pushed_downstream?"Pushed downstream":"Held for human review"}</div>
   <div style={{height:60}}/>
  </div>);
 }
