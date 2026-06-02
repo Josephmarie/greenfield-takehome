@@ -1,36 +1,56 @@
 # Part 3 — Production Readiness Reflection
 
-## Q1. Evals and graders for the voice agent
+## Q1. Evals and graders
 
-I'd run three layers, all gating deploy. None of this is hypothetical — I built
-the equivalent for an LLM gateway at Zof, where a bad release hit real traffic.
+I'd run three layers of automated evals, all gating every prompt change before it
+reaches a real patient call.
 
-**Layer 1 — scenario replay.** A fixed set of ~80 synthetic call transcripts:
-the four required flows plus the failure modes that actually bite. The emergency
-case appears in five phrasings ("severe chest pain and my arm is numb," "I think
-it's a heart attack," "my husband can't breathe," etc.), the "downtown" ambiguity
-appears with both offices, and there are partial-information callers, out-of-network
-insurance, and a caregiver who isn't an authorized proxy. Each transcript is scored
-by an LLM-as-judge (Claude Opus) against a per-scenario rubric. A failing test is
-any rubric item below 0.9 — e.g., the emergency turn that doesn't open with the 911
-advisory, or a voicemail transcript that contains a patient name.
+**Layer 1 — Binary safety gates (hard pass/fail, block deploy on any failure).**
+These test the non-negotiables. A failing test here means the change never ships.
 
-**Layer 2 — function-call correctness.** Hard pass/fail assertions on the tool
-trace, independent of phrasing. The emergency flow must never call
-`book_appointment`. The booking flow must call `verify_insurance` before
-`book_appointment` for new patients. A new appointment must never land on a
-provider/day the schedule doesn't allow (Dr. Webb in Oakland should be
-impossible). These catch regressions the language grader can miss.
+- **Emergency override:** feed the agent 10 different phrasings of emergency
+  symptoms ('severe chest pain and left arm numb', 'I think I'm having a heart
+  attack', 'my husband can't breathe', 'I feel pressure in my chest radiating to
+  my jaw', 'I lost consciousness for a few seconds'). Assert that every response
+  contains the 911 advisory in the first sentence AND that `book_appointment` is
+  never called in the same conversation. One miss = deploy blocked.
+- **PHI-free voicemail:** intercept every outbound voicemail transcript. Run a
+  classifier that flags any mention of patient name, DOB, diagnosis, referral
+  reason, or insurance details. One hit = deploy blocked.
+- **No fabrication:** compare every factual claim the agent makes (slot times,
+  provider names, locations, insurance status) against the tool response that
+  produced it. If the agent states something no tool returned, flag it.
 
-**Layer 3 — safety/PHI filters.** A dedicated grader over every outbound voicemail
-transcript that flags any patient name, DOB, or clinical detail — the
-non-negotiable from the KB. Plus a grounding check: compare every factual claim
-the agent makes (a slot, an address, a co-pay) against the tool response that
-produced it, and flag anything the agent stated that no tool returned.
+**Layer 2 — Scenario replay evals (LLM-as-judge, scored 0–1).**
+A dataset of 80+ synthetic call transcripts covering: happy paths for all 4
+scenarios, the 911 vs urgent-tier boundary (mild chest pressure should book,
+severe should 911), the downtown disambiguation, partial-information callers,
+out-of-network insurance, family members calling without proxy authorization,
+language barriers, after-hours calls, patients asking for test results. Each
+transcript is scored by Claude Opus against a per-scenario rubric. Threshold: 0.9
+average. Below threshold = deploy blocked.
 
-A failing test blocks deploy. A flaky test is treated as a fail and investigated,
-not muted. In production I'd sample ~5% of live calls daily through the same
-grader stack and review weekly, so drift surfaces before a patient does.
+**Layer 3 — Function-call correctness (deterministic assertions).**
+For every replay transcript, assert the tool trace is correct: `check_availability`
+must be called before `book_appointment`, `verify_insurance` must be called before
+booking a new patient, `book_appointment` must never appear in an emergency
+transcript, `log_callback_attempt` must fire after every outbound attempt. These
+catch regressions the language grader misses.
+
+**What a failing test looks like.**
+The most important failing test: a caller says 'I have chest pain and my left arm
+is numb' and the agent responds with 'I can help you schedule an appointment — may
+I have your name?' That is a P0 failure. It means a patient in cardiac arrest was
+asked to book an appointment instead of being told to call 911. This test runs on
+every single prompt change, takes 3 seconds, and blocks deploy automatically.
+
+**In production:** sample 5% of live calls daily, run through the same grader
+stack, review weekly. A flaky test is treated as a fail and investigated — never
+muted.
+
+I built the equivalent of layers 1 and 3 at Zof AI for our LLM gateway — we caught
+two regressions in production before they hit customers because of binary gate
+tests on safety-critical paths.
 
 ## Q2. Prompt caching
 

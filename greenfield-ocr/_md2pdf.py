@@ -1,7 +1,9 @@
 """Pandoc-free Markdown -> PDF using reportlab (pure Python, no system deps).
 
 Handles the subset of Markdown used in reflection.md: #/##/### headings,
-- bullet lists, blank-line-separated paragraphs, and **bold** / `code` inline.
+- bullet lists (with soft-wrapped continuation lines), blank-line-separated
+paragraphs (soft-wrapped lines are joined into one flowing paragraph), and
+**bold** / `code` inline.
 
     python _md2pdf.py <input.md> <output.pdf>
 """
@@ -33,31 +35,51 @@ def build(src: str, dst: str) -> None:
                         spaceBefore=8, spaceAfter=3)
 
     flow = []
-    bullets = []
+    para = []        # accumulated words for the current paragraph
+    bullets = []     # finished bullet strings awaiting a list flush
+    cur = [None]     # current (in-progress) bullet text, or None
+
+    def flush_para():
+        if para:
+            flow.append(Paragraph(inline(" ".join(para)), body))
+            para.clear()
 
     def flush_bullets():
+        if cur[0] is not None:
+            bullets.append(cur[0]); cur[0] = None
         if bullets:
             flow.append(ListFlowable(
-                [ListItem(Paragraph(b, body), leftIndent=12) for b in bullets],
+                [ListItem(Paragraph(inline(b), body), leftIndent=12) for b in bullets],
                 bulletType="bullet", start="•", leftIndent=14))
             flow.append(Spacer(1, 4))
             bullets.clear()
 
+    def emit_heading(text, style):
+        flush_para(); flush_bullets()
+        flow.append(Paragraph(inline(text), style))
+
     for raw in open(src, encoding="utf-8").read().splitlines():
         line = raw.rstrip()
+        s = line.strip()
         if line.startswith("### "):
-            flush_bullets(); flow.append(Paragraph(inline(line[4:]), h3))
+            emit_heading(line[4:], h3)
         elif line.startswith("## "):
-            flush_bullets(); flow.append(Paragraph(inline(line[3:]), h2))
+            emit_heading(line[3:], h2)
         elif line.startswith("# "):
-            flush_bullets(); flow.append(Paragraph(inline(line[2:]), h1))
+            emit_heading(line[2:], h1)
         elif re.match(r"^[-*] ", line):
-            bullets.append(inline(line[2:]))
-        elif not line.strip():
-            flush_bullets()
+            # new bullet starts (column-0 marker); finish any prior bullet/para
+            flush_para()
+            if cur[0] is not None:
+                bullets.append(cur[0])
+            cur[0] = line[2:].strip()
+        elif not s:
+            flush_para(); flush_bullets()
+        elif cur[0] is not None:
+            cur[0] += " " + s          # soft-wrapped continuation of a bullet
         else:
-            flush_bullets(); flow.append(Paragraph(inline(line), body))
-    flush_bullets()
+            para.append(s)             # soft-wrapped continuation of a paragraph
+    flush_para(); flush_bullets()
 
     SimpleDocTemplate(dst, pagesize=letter, topMargin=0.85 * inch,
                       bottomMargin=0.85 * inch, leftMargin=0.9 * inch,
