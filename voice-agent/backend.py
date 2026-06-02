@@ -9,11 +9,37 @@ Retell function tools at the matching routes. All data is the synthetic KB.
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timedelta
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+
+
+def _unwrap(body):
+    """Retell posts tool calls as {"call":..., "name":..., "args":{...}}; direct
+    callers post the params flat. Return the actual params dict either way."""
+    if isinstance(body, dict):
+        a = body.get("args")
+        if isinstance(a, str):
+            try:
+                a = json.loads(a)
+            except Exception:
+                a = None
+        if isinstance(a, dict):
+            return a
+    return body if isinstance(body, dict) else {}
+
+
+class ToolReq(BaseModel):
+    """Base for Retell tool request bodies — unwraps the Retell `args` envelope
+    before validation, while still accepting a flat body (curl/tests)."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap_args(cls, data):
+        return _unwrap(data)
 
 app = FastAPI(title="Greenfield Cardiology tool backend")
 
@@ -45,7 +71,7 @@ PROVIDER_SCHEDULE = {
 CALLBACKS: dict[str, list[dict]] = {}
 
 
-class InsuranceReq(BaseModel):
+class InsuranceReq(ToolReq):
     carrier: str
     member_id: str | None = None
 
@@ -60,7 +86,7 @@ def verify_insurance(req: InsuranceReq):
     return {"accepted": False, "message": "I'm not certain that plan is in network. Our team will verify and follow up within one business day."}
 
 
-class AvailabilityReq(BaseModel):
+class AvailabilityReq(ToolReq):
     provider: str = ""          # optional so a partial call never 422s the agent
     location: str | None = "sf"
     date_range: str | None = None
@@ -166,7 +192,7 @@ def _parse_slot(slot: str):
     return dt
 
 
-class BookReq(BaseModel):
+class BookReq(ToolReq):
     patient_name: str
     dob: str | None = None
     provider: str
@@ -214,12 +240,12 @@ def book_appointment(req: BookReq):
 
 @app.post("/lookup_location")
 def lookup_location(query: dict):
-    q = (query.get("query") or "").lower()
+    q = (_unwrap(query).get("query") or "").lower()
     loc = "oakland" if "oak" in q else "sf"
     return LOCATIONS[loc]
 
 
-class CallbackReq(BaseModel):
+class CallbackReq(ToolReq):
     referral_id: str
     outcome: str  # "answered" | "voicemail" | "no_answer"
 
@@ -245,6 +271,7 @@ def log_callback_attempt(req: CallbackReq):
 
 @app.post("/flag_for_clinical_review")
 def flag_for_clinical_review(payload: dict):
+    payload = _unwrap(payload)
     return {"ok": True, "flagged": payload.get("reason", "unspecified")}
 
 
