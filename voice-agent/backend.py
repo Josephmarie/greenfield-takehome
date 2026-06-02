@@ -26,10 +26,19 @@ LOCATIONS = {
     "oakland": {"name": "Oakland (Satellite)", "address": "2800 Broadway, Suite 110, Oakland, CA 94611", "phone": "510-555-0234", "hours": "Mon-Fri 8am-5pm PT"},
 }
 
+# Per location: which weekdays the provider is there, and the clinic-hours window
+# (start/end hour, 24h) used to generate concrete appointment times.
 PROVIDER_SCHEDULE = {
-    "dr. chen": {"sf": ["Mon", "Wed", "Fri"], "oakland": ["Tue", "Thu"]},
-    "dr. webb": {"sf": ["Tue", "Thu"]},
-    "jennifer park": {"sf": ["Mon", "Tue", "Wed", "Thu", "Fri"]},
+    "dr. chen": {
+        "sf": {"days": ["Mon", "Wed", "Fri"], "start": 9, "end": 17},
+        "oakland": {"days": ["Tue", "Thu"], "start": 10, "end": 16},
+    },
+    "dr. webb": {
+        "sf": {"days": ["Tue", "Thu"], "start": 8, "end": 16},
+    },
+    "jennifer park": {
+        "sf": {"days": ["Mon", "Tue", "Wed", "Thu", "Fri"], "start": 8, "end": 12},
+    },
 }
 
 # in-memory referral attempt tracker (synthetic, single process)
@@ -71,28 +80,41 @@ def _match_provider(name: str):
     return None
 
 
+def _next_slots(sched: dict, count: int = 3, horizon: int = 35):
+    """Return the next `count` concrete appointment times (as formatted strings)
+    from today, for a given location schedule. Always forward-looking — never
+    returns days that have already passed."""
+    now = datetime.now()
+    days, start_h = sched["days"], sched["start"]
+    out = []
+    for i in range(horizon):
+        d = now + timedelta(days=i)
+        if d.strftime("%a") not in days:
+            continue
+        slot = d.replace(hour=start_h, minute=0, second=0, microsecond=0)
+        if slot <= now:  # skip a same-day time that already passed
+            continue
+        out.append(slot.strftime("%A, %B %-d at %-I:%M %p"))
+        if len(out) >= count:
+            break
+    return out
+
+
 @app.post("/check_availability")
 def check_availability(req: AvailabilityReq):
     key = _match_provider(req.provider)
     loc = "oakland" if "oak" in (req.location or "").lower() else "sf"
-    days = PROVIDER_SCHEDULE.get(key, {}).get(loc, []) if key else []
-    if not days:
-        # Offer the provider's other office if they don't work the requested one.
+    sched = (PROVIDER_SCHEDULE.get(key) or {}).get(loc)
+    if not sched:
+        # Provider doesn't work the requested office — offer their other office.
         other = "sf" if loc == "oakland" else "oakland"
-        other_days = PROVIDER_SCHEDULE.get(key, {}).get(other, []) if key else []
-        if other_days:
-            return {"slots": [], "message": f"{req.provider} doesn't see patients at our {LOCATIONS[loc]['name']} office, but is available at {LOCATIONS[other]['name']}."}
+        other_sched = (PROVIDER_SCHEDULE.get(key) or {}).get(other)
+        if other_sched:
+            return {"provider": req.provider, "location": LOCATIONS[other],
+                    "slots": _next_slots(other_sched),
+                    "message": f"{req.provider} isn't at our {LOCATIONS[loc]['name']} office, but here are the next openings at {LOCATIONS[other]['name']}."}
         return {"slots": [], "message": f"I couldn't find availability for {req.provider or 'that provider'} at that location."}
-    # return two synthetic upcoming slots on valid days
-    today = datetime.now()
-    slots = []
-    for i in range(1, 15):
-        d = today + timedelta(days=i)
-        if d.strftime("%a") in days:
-            slots.append(f"{d:%A, %B %d} at 10:00 AM")
-        if len(slots) == 2:
-            break
-    return {"provider": req.provider, "location": LOCATIONS[loc], "slots": slots}
+    return {"provider": req.provider, "location": LOCATIONS[loc], "slots": _next_slots(sched)}
 
 
 # ── Google Calendar integration ──────────────────────────────────────────────
