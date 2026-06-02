@@ -114,10 +114,21 @@ function Landing({onCall,go}){
     <div style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:C.mono,fontSize:11.5,letterSpacing:".05em",color:C.teal,background:"rgba(15,110,91,.08)",padding:"5px 11px",borderRadius:20,marginBottom:22}}><span style={{width:6,height:6,borderRadius:"50%",background:C.green,animation:"pulse 1.4s ease infinite"}}/>Front desk · online now</div>
     <h1 style={{fontFamily:C.display,fontSize:52,fontWeight:600,lineHeight:1.04,margin:"0 0 18px",letterSpacing:"-0.01em"}}>Care that answers on the <span style={{fontStyle:"italic",color:C.teal}}>first ring.</span></h1>
     <p style={{fontFamily:C.sans,fontSize:16.5,lineHeight:1.6,color:C.inkSoft,maxWidth:480,margin:"0 0 30px"}}>Greenfield Cardiology's AI front desk schedules visits, verifies insurance, handles referrals, and knows when to send you straight to 911. Talk to it now.</p>
-    <div style={{display:"flex",gap:14,alignItems:"center"}}>
-     <button onClick={onCall} style={{display:"inline-flex",alignItems:"center",gap:9,fontFamily:C.sans,fontSize:15,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:10,padding:"14px 24px",cursor:"pointer",boxShadow:"0 6px 20px rgba(10,74,62,.22)"}}><PhoneWave/>Talk to the front desk</button>
+    <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+     <button onClick={onCall} style={{display:"inline-flex",alignItems:"center",gap:9,fontFamily:C.sans,fontSize:15,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:10,padding:"14px 24px",cursor:"pointer",boxShadow:"0 6px 20px rgba(10,74,62,.22)"}}><PhoneWave/>Talk to the front desk on the web</button>
      <button onClick={()=>go("console")} style={{fontFamily:C.sans,fontSize:15,fontWeight:600,color:C.tealDeep,background:"none",border:`1px solid ${C.line}`,borderRadius:10,padding:"14px 22px",cursor:"pointer"}}>View intake console</button>
     </div>
+    <a href="tel:+14156504518"
+       onMouseEnter={e=>{e.currentTarget.style.borderColor=C.teal;e.currentTarget.style.boxShadow="0 6px 22px rgba(10,74,62,.10)";e.currentTarget.style.transform="translateY(-1px)";}}
+       onMouseLeave={e=>{e.currentTarget.style.borderColor=C.line;e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="none";}}
+       style={{marginTop:18,display:"inline-flex",alignItems:"center",gap:13,textDecoration:"none",background:C.card,border:`1px solid ${C.line}`,borderRadius:12,padding:"10px 18px 10px 12px",transition:"all .18s ease"}}>
+     <span style={{width:40,height:40,borderRadius:"50%",background:"rgba(15,110,91,.10)",display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><PhoneWave color={C.tealDeep} s={18}/></span>
+     <span style={{display:"flex",flexDirection:"column",lineHeight:1.25}}>
+      <span style={{fontFamily:C.sans,fontSize:10.5,fontWeight:600,letterSpacing:".07em",textTransform:"uppercase",color:C.inkFaint}}>Or call the front desk</span>
+      <span style={{fontFamily:C.mono,fontSize:18,fontWeight:500,color:C.tealDeep,letterSpacing:".01em"}}>+1 (415) 650-4518</span>
+     </span>
+    </a>
+    <div style={{marginTop:10,fontFamily:C.sans,fontSize:12,color:C.inkFaint}}>Same AI front desk, by phone · Mon–Fri 8am–5pm PT</div>
    </div>
    <div style={{position:"relative",height:340,display:"flex",alignItems:"center",justifyContent:"center"}}>
     {[0,1,2].map(i=>(<div key={i} style={{position:"absolute",width:150,height:150,borderRadius:"50%",border:`1.5px solid ${C.teal}`,animation:`ring 3s ease-out ${i*1}s infinite`}}/>))}
