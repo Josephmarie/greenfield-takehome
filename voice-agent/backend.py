@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 app = FastAPI(title="Greenfield Cardiology tool backend")
@@ -157,7 +157,8 @@ except Exception:               # keep the tool server usable without call creds
 
 AGENT_ID = os.environ.get("RETELL_AGENT_ID")                     # front desk (inbound)
 OUTBOUND_AGENT_ID = os.environ.get("RETELL_OUTBOUND_AGENT_ID")   # outbound callback
-FROM_NUMBER = os.environ.get("RETELL_FROM_NUMBER")
+# The practice's Twilio number, imported into Retell for outbound dialing.
+FROM_NUMBER = os.environ.get("RETELL_FROM_NUMBER", "+14156504518")
 
 # Named agents the browser can start a web call against.
 AGENTS = {"front_desk": AGENT_ID, "outbound": OUTBOUND_AGENT_ID or AGENT_ID}
@@ -182,18 +183,23 @@ def create_web_call(req: WebCallReq | None = None):
 class OutboundReq(BaseModel):
     to_number: str
     referral_id: str | None = None
+    override_agent_id: str | None = None
 
 
 @app.post("/calls/outbound")
 def create_outbound_call(req: OutboundReq):
     """Dial a real phone from the console (the Scenario-4 referral callback)."""
-    call = _retell.call.create_phone_call(
-        from_number=FROM_NUMBER,
-        to_number=req.to_number,
-        override_agent_id=AGENT_ID,
-        metadata={"referral_id": req.referral_id} if req.referral_id else None,
-    )
-    return {"call_id": call.call_id}
+    agent_id = req.override_agent_id or OUTBOUND_AGENT_ID or AGENT_ID
+    try:
+        call = _retell.call.create_phone_call(
+            from_number=FROM_NUMBER,
+            to_number=req.to_number,
+            override_agent_id=agent_id,
+            metadata={"referral_id": req.referral_id} if req.referral_id else None,
+        )
+    except Exception as exc:  # surface Retell errors (bad number, etc.) cleanly
+        raise HTTPException(status_code=502, detail=f"Could not place call: {exc}") from exc
+    return {"call_id": call.call_id, "from_number": FROM_NUMBER, "agent_id": agent_id}
 
 
 @app.get("/calls/{call_id}")

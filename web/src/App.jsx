@@ -359,6 +359,22 @@ function Dashboard({auth}){
  const sel=runs.find(r=>r.id===selId)||null;
  const phone=runPhone(sel);
  const outbound=(to)=>{live.reset();setLiveTo(to);setDockOpen(true);live.start("outbound");};
+ // Demo "Test callback": dial the logged-in user's own number to hear voicemail.
+ const OUTBOUND_AGENT="agent_c56099a90a4b27dcaa1df3f737";
+ const TEST_NUMBERS={joseph:"+15102701696",varuni:""};
+ const[testOpen,setTestOpen]=useState(false);const[testNum,setTestNum]=useState("");
+ const[testBusy,setTestBusy]=useState(false);const[testMsg,setTestMsg]=useState(null);const[testErr,setTestErr]=useState(null);
+ const openTest=()=>{setTestOpen(o=>!o);setTestNum(TEST_NUMBERS[auth.user]||"");setTestMsg(null);setTestErr(null);};
+ const placeTestCall=async()=>{
+  const to=(testNum||"").trim();
+  if(!to){setTestErr("Enter a number first.");return;}
+  setTestBusy(true);setTestErr(null);setTestMsg(null);
+  try{
+   const res=await fetch(`${API_BASE}/calls/outbound`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({to_number:to,referral_id:sel&&sel.id,override_agent_id:OUTBOUND_AGENT})});
+   if(!res.ok){let m=`HTTP ${res.status}`;try{const e=await res.json();if(e.detail)m=typeof e.detail==="string"?e.detail:JSON.stringify(e.detail);}catch{}throw new Error(m);}
+   await res.json();setTestMsg("Call placed — let it go to voicemail.");
+  }catch(err){setTestErr(err.message||"Call failed");}finally{setTestBusy(false);}
+ };
  const LMAP={idle:"connecting",connecting:"connecting",live:"live",ended:"ended",error:"ended"};
  const dockCall=dockOpen?{status:LMAP[live.status]||"connecting",seconds:live.seconds,transcript:live.transcript,to:liveTo,error:live.error}:null;
  const dockEnd=()=>{if(live.status==="live"||live.status==="connecting"){live.stop();}else{setDockOpen(false);live.reset();}};
@@ -382,7 +398,24 @@ function Dashboard({auth}){
   </aside>
   <main key={selId||"empty"} style={{padding:"28px 40px",animation:"panelIn .32s ease both",maxWidth:860}}>
    {sel?(<>
-    {runDisposition(sel)==="held"&&phone&&(<div style={{marginBottom:18,padding:"16px 18px",background:"rgba(15,110,91,.05)",border:`1px solid rgba(15,110,91,.22)`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}><div><div style={{fontFamily:C.sans,fontSize:13,fontWeight:600,color:C.tealDeep}}>Referral held — patient contact required</div><div style={{fontFamily:C.mono,fontSize:12,color:C.inkSoft,marginTop:3}}>{phone} · up to 3 attempts · PHI-free voicemail</div></div><button onClick={()=>outbound(phone)} style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:C.sans,fontSize:13,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:8,padding:"10px 16px",cursor:"pointer",whiteSpace:"nowrap"}}><PhoneWave/>Initiate callback</button></div>)}
+    {runDisposition(sel)==="held"&&(<div style={{marginBottom:18,padding:"16px 18px",background:"rgba(15,110,91,.05)",border:`1px solid rgba(15,110,91,.22)`,borderRadius:10}}>
+     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
+      <div><div style={{fontFamily:C.sans,fontSize:13,fontWeight:600,color:C.tealDeep}}>Referral held — patient contact required</div><div style={{fontFamily:C.mono,fontSize:12,color:C.inkSoft,marginTop:3}}>{phone?`${phone} · `:""}up to 3 attempts · PHI-free voicemail</div></div>
+      <div style={{display:"flex",gap:10,alignItems:"center"}}>
+       {phone&&<button onClick={()=>outbound(phone)} style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:C.sans,fontSize:13,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:8,padding:"10px 16px",cursor:"pointer",whiteSpace:"nowrap"}}><PhoneWave/>Initiate callback</button>}
+       <button onClick={openTest} style={{display:"inline-flex",alignItems:"center",gap:7,fontFamily:C.sans,fontSize:13,fontWeight:600,color:C.tealDeep,background:"none",border:`1px solid ${C.teal}`,borderRadius:8,padding:"9px 15px",cursor:"pointer",whiteSpace:"nowrap"}}>Test callback</button>
+      </div>
+     </div>
+     {testOpen&&(<div style={{marginTop:14,paddingTop:14,borderTop:`1px solid rgba(15,110,91,.18)`}}>
+      <div style={{fontFamily:C.sans,fontSize:12,color:C.inkSoft,marginBottom:8}}>Demo: call this number to test voicemail</div>
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+       <input value={testNum} onChange={e=>{setTestNum(e.target.value);setTestErr(null);}} placeholder="+1 555 000 0000" style={{fontFamily:C.mono,fontSize:13.5,color:C.ink,background:C.card,border:`1px solid ${C.line}`,borderRadius:8,padding:"9px 12px",outline:"none",minWidth:210}} onFocus={e=>e.target.style.borderColor=C.teal} onBlur={e=>e.target.style.borderColor=C.line}/>
+       <button onClick={placeTestCall} disabled={testBusy} style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:C.sans,fontSize:13,fontWeight:600,color:"#fff",background:testBusy?C.inkFaint:C.tealDeep,border:"none",borderRadius:8,padding:"10px 16px",cursor:testBusy?"default":"pointer",whiteSpace:"nowrap"}}><PhoneWave/>{testBusy?"Calling…":"Call me"}</button>
+      </div>
+      {testMsg&&<div style={{marginTop:9,fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:C.green}}>{testMsg}</div>}
+      {testErr&&<div style={{marginTop:9,fontFamily:C.mono,fontSize:11.5,color:C.red,wordBreak:"break-word"}}>{testErr}</div>}
+     </div>)}
+    </div>)}
     <UploadedResult result={runToResult(sel)} onClear={null}/>
    </>):(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"60vh",textAlign:"center"}}>
