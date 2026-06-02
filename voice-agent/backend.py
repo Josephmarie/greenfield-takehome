@@ -80,22 +80,35 @@ def _match_provider(name: str):
     return None
 
 
-def _next_slots(sched: dict, count: int = 3, horizon: int = 35):
-    """Return the next `count` concrete appointment times (as formatted strings)
-    from today, for a given location schedule. Always forward-looking — never
-    returns days that have already passed."""
+PREFERRED_HOURS = [9, 10, 11, 14]  # 9am, 10am, 11am, 2pm
+
+
+def _day_hours(start_h: int, end_h: int):
+    """Up to 4 appointment hours within [start, end): the preferred set plus the
+    office's opening hour (so early-opening clinics like 8am still get 8:00)."""
+    hours = sorted(set(PREFERRED_HOURS + [start_h]))
+    return [h for h in hours if start_h <= h < end_h][:4]
+
+
+def _next_slots(sched: dict, days_count: int = 3, horizon: int = 35):
+    """Return concrete appointment times (formatted strings) for the next
+    `days_count` available days, with 3-4 times per day from the provider's
+    clinic hours. Always forward-looking — never returns times already passed."""
     now = datetime.now()
-    days, start_h = sched["days"], sched["start"]
-    out = []
+    days = sched["days"]
+    hours = _day_hours(sched["start"], sched["end"])
+    out, filled_days = [], 0
     for i in range(horizon):
         d = now + timedelta(days=i)
         if d.strftime("%a") not in days:
             continue
-        slot = d.replace(hour=start_h, minute=0, second=0, microsecond=0)
-        if slot <= now:  # skip a same-day time that already passed
-            continue
-        out.append(slot.strftime("%A, %B %-d at %-I:%M %p"))
-        if len(out) >= count:
+        day_slots = [d.replace(hour=h, minute=0, second=0, microsecond=0).strftime("%A, %B %-d at %-I:%M %p")
+                     for h in hours
+                     if d.replace(hour=h, minute=0, second=0, microsecond=0) > now]
+        if day_slots:
+            out.extend(day_slots)
+            filled_days += 1
+        if filled_days >= days_count:
             break
     return out
 
