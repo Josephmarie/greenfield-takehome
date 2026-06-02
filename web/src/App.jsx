@@ -65,17 +65,18 @@ const DISPOSITION={cleared:{label:"Cleared",color:C.green},flagged:{label:"Flagg
 function Disposition({d}){const x=DISPOSITION[d];return(<span style={{display:"inline-flex",alignItems:"center",gap:7,fontFamily:C.sans,fontSize:12,fontWeight:600,color:x.color,background:`${x.color}14`,padding:"5px 11px",borderRadius:20}}><span style={{width:7,height:7,borderRadius:"50%",background:x.color}}/>{x.label}</span>);}
 const ST=({children})=>(<div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".09em",textTransform:"uppercase",color:C.inkFaint,margin:"26px 0 12px"}}>{children}</div>);
 
-const FAXES=[
- {id:"fax-001",type:"referral",typeLabel:"Referral",from:"Bay Area Internal Medicine Group",patient:"James Patterson",phone:"415-555-7892",received:"May 26, 2026",classification:{label:"Referral",confidence:.97},disposition:"held",callback:{reason:"Referral received — patient contact required"},
-  fields:[{label:"Patient name",value:"James Patterson",confidence:"high",quote:"Patient Name: James Patterson"},{label:"Date of birth",value:"04/22/1958",confidence:"high",quote:"Date of Birth: 04/22/1958"},{label:"Phone",value:"(415) 555-7892",confidence:"high",quote:"Phone: (415) 555-7892"},{label:"Insurance carrier",value:"Aetna PPO",confidence:"high",quote:"Insurance Carrier: Aetna PPO"},{label:"Member ID",value:"AET-992847162",confidence:"high",quote:"Member ID: AET-992847162"},{label:"Group number",value:null,confidence:"missing",quote:"Group Number: [FIELD LEFT BLANK]"},{label:"Referring provider",value:"Dr. Michael Torres, MD",confidence:"high",quote:"Referring Provider: Dr. Michael Torres, MD"},{label:"Referring provider NPI",value:null,confidence:"missing",quote:"Referring Provider NPI: [FIELD LEFT BLANK]"},{label:"Reason for referral",value:"Exertional chest pain with shortness of breath",confidence:"high",quote:"Chief Complaint: Exertional chest pain"},{label:"Urgency",value:"Routine",confidence:"high",quote:"Urgency: [X] ROUTINE"}],
-  review:[{field:"Group number",reason:"Field left blank on document"},{field:"Referring provider NPI",reason:"Field left blank on document"}],denyBack:["Group number","Referring provider NPI"]},
- {id:"fax-002",type:"insurance_card",typeLabel:"Insurance Card",from:"Maria Gonzalez",patient:"Maria Gonzalez",received:"May 26, 2026",classification:{label:"Insurance Card",confidence:.96},disposition:"cleared",note:"Cigna is in-network. Ready to attach to the patient record.",
-  fields:[{label:"Member name",value:"GONZALEZ, MARIA",confidence:"high",quote:"Member Name: GONZALEZ, MARIA"},{label:"Member ID",value:"CIG-4471829304",confidence:"high",quote:"Member ID: CIG-4471829304"},{label:"Group number",value:"00456781",confidence:"high",quote:"Group Number: 00456781"},{label:"Payer ID",value:"62308",confidence:"high",quote:"Payer ID: 62308"},{label:"Co-pay (specialist)",value:"$60",confidence:"high",quote:"Copay - Specialist: $60"},{label:"Effective date",value:"01/01/2026",confidence:"high",quote:"Effective: 01/01/2026"}],review:[]},
- {id:"fax-003",type:"lab_result",typeLabel:"Lab Result",from:"Quest Diagnostics",patient:"Robert Kim",received:"May 24, 2026",classification:{label:"Lab Result",confidence:.95},disposition:"flagged",
-  fields:[{label:"Patient name",value:"Robert Kim",confidence:"high",quote:"PATIENT: Robert Kim"},{label:"Date of birth",value:"11/03/1965",confidence:"high",quote:"Date of Birth: 11/03/1965"},{label:"Ordering provider",value:"Dr. Sarah Chen, MD",confidence:"high",quote:"Ordering Provider: Dr. Sarah Chen, MD"},{label:"Report date",value:"05/24/2026",confidence:"high",quote:"Date Reported: 05/24/2026"}],
-  labs:[{c:"WBC",v:"11.2",unit:"K/uL",range:"4.5 – 11.0",out:true,computed:"H",labFlag:"H"},{c:"RBC",v:"4.1",unit:"M/uL",range:"4.2 – 5.8",out:true,computed:"L",labFlag:null},{c:"Hemoglobin",v:"12.8",unit:"g/dL",range:"13.5 – 17.5",out:true,computed:"L",labFlag:"L"},{c:"Hematocrit",v:"38.2",unit:"%",range:"41 – 53",out:true,computed:"L",labFlag:"L"},{c:"MCV",v:"79",unit:"fL",range:"80 – 100",out:true,computed:"L",labFlag:"L"},{c:"MCH",v:"26.1",unit:"pg",range:"27 – 33",out:true,computed:"L",labFlag:"L"},{c:"MCHC",v:"33.4",unit:"g/dL",range:"32 – 36",out:false,computed:"normal",labFlag:null},{c:"RDW",v:"15.8",unit:"%",range:"11.5 – 14.5",out:true,computed:"H",labFlag:"H"},{c:"Platelets",v:"428",unit:"K/uL",range:"150 – 400",out:true,computed:"H",labFlag:"H"},{c:"Neutrophils",v:"72",unit:"%",range:"50 – 70",out:true,computed:"H",labFlag:null},{c:"Lymphocytes",v:"18",unit:"%",range:"20 – 40",out:true,computed:"L",labFlag:"L"}],
-  review:[{field:"RBC",reason:"4.1 below 4.2–5.8 (computed L) — lab printed no flag"},{field:"Neutrophils",reason:"72 above 50–70 (computed H) — lab printed no flag"}]},
-];
+// ── lightweight invite-code auth ─────────────────────────────────────────────
+// Valid codes come from build-time Vite env vars (VITE_CODE_JOSEPH / _VARUNI).
+const INVITE_CODES={joseph:import.meta.env.VITE_CODE_JOSEPH,varuni:import.meta.env.VITE_CODE_VARUNI};
+const AUTH_KEY="gc_auth";
+function checkCode(code){const c=(code||"").trim();for(const [user,valid] of Object.entries(INVITE_CODES)){if(valid&&c===valid)return user;}return null;}
+function loadAuth(){try{const a=JSON.parse(localStorage.getItem(AUTH_KEY)||"null");return (a&&a.user&&a.token)?a:null;}catch{return null;}}
+
+// ── map persisted DB rows <-> the OCR result shape UploadedResult renders ─────
+function runDisposition(r){if(r.deny_back_letter)return "held";if(r.pushed_downstream)return "cleared";return "flagged";}
+function runToResult(r){return {source:r.filename,classification:{doc_type:r.doc_type,confidence:r.classification_confidence},extracted:r.extracted_fields,review_queue:r.review_queue||[],deny_back_letter:r.deny_back_letter,pushed_downstream:r.pushed_downstream};}
+function runPhone(r){const p=r&&r.extracted_fields&&r.extracted_fields.phone;return (p&&typeof p==="object")?p.value:(typeof p==="string"?p:null);}
+
 
 // inbound booking call script + the record it produces
 const BOOKING=[
@@ -98,10 +99,15 @@ const CAPTURED={outcome:"Appointment booked",confirmation:"GC-40192",
 const CALL_STATUS={connecting:{t:"Connecting",c:C.amber},dialing:{t:"Dialing",c:C.amber},ringing:{t:"Ringing",c:C.amber},live:{t:"Live",c:C.green},voicemail:{t:"Voicemail",c:C.teal},ended:{t:"Call ended",c:C.inkFaint}};
 
 // ── Nav ──────────────────────────────────────────────────────────────────────
-function Nav({page,go}){const link=(id,label)=>(<button onClick={()=>go(id)} style={{border:"none",background:"none",cursor:"pointer",fontFamily:C.sans,fontSize:13,fontWeight:600,color:page===id?C.tealDeep:C.inkSoft,padding:"6px 2px",borderBottom:`2px solid ${page===id?C.teal:"transparent"}`}}>{label}</button>);
+function Nav({page,go,auth,onLogout}){const link=(id,label)=>(<button onClick={()=>go(id)} style={{border:"none",background:"none",cursor:"pointer",fontFamily:C.sans,fontSize:13,fontWeight:600,color:page===id?C.tealDeep:C.inkSoft,padding:"6px 2px",borderBottom:`2px solid ${page===id?C.teal:"transparent"}`}}>{label}</button>);
  return(<header style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 34px",borderBottom:`1px solid ${C.line}`,background:"rgba(252,251,247,.8)",backdropFilter:"blur(6px)",position:"sticky",top:0,zIndex:20}}>
   <button onClick={()=>go("home")} style={{display:"flex",alignItems:"center",gap:12,border:"none",background:"none",cursor:"pointer"}}><div style={{width:36,height:36,borderRadius:9,background:C.tealDeep,display:"flex",alignItems:"center",justifyContent:"center"}}><Ekg color="#EAF3EF" w={22}/></div><span style={{fontFamily:C.display,fontSize:18,fontWeight:600,color:C.ink}}>Greenfield Cardiology</span></button>
-  <nav style={{display:"flex",gap:26,alignItems:"center"}}>{link("home","Home")}{link("console","Intake Console")}</nav>
+  <nav style={{display:"flex",gap:22,alignItems:"center"}}>{link("home","Home")}{link("console","Dashboard")}
+   {auth&&<div style={{display:"flex",alignItems:"center",gap:11,marginLeft:6,paddingLeft:18,borderLeft:`1px solid ${C.line}`}}>
+    <span style={{display:"inline-flex",alignItems:"center",gap:7,fontFamily:C.mono,fontSize:12,color:C.inkSoft}}><span style={{width:6,height:6,borderRadius:"50%",background:C.green}}/>{auth.user}</span>
+    <button onClick={onLogout} style={{fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:C.tealDeep,background:"none",border:`1px solid ${C.line}`,borderRadius:8,padding:"6px 12px",cursor:"pointer"}}>Log out</button>
+   </div>}
+  </nav>
  </header>);
 }
 
@@ -271,7 +277,7 @@ function UploadedResult({result,onClear}){
   <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20}}>
    <div><div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:C.teal,marginBottom:6}}>Uploaded · live pipeline</div>
     <h1 style={{fontFamily:C.display,fontSize:26,fontWeight:600,margin:0,wordBreak:"break-all"}}>{result.source||"document"}</h1></div>
-   <button onClick={onClear} style={{fontFamily:C.sans,fontSize:12,fontWeight:600,color:C.tealDeep,background:"none",border:`1px solid ${C.line}`,borderRadius:8,padding:"8px 12px",cursor:"pointer",whiteSpace:"nowrap"}}>← Back to samples</button>
+   {onClear&&<button onClick={onClear} style={{fontFamily:C.sans,fontSize:12,fontWeight:600,color:C.tealDeep,background:"none",border:`1px solid ${C.line}`,borderRadius:8,padding:"8px 12px",cursor:"pointer",whiteSpace:"nowrap"}}>← Back to samples</button>}
   </div>
   <div style={{display:"flex",alignItems:"center",gap:14,marginTop:18,padding:"14px 18px",background:C.card,border:`1px solid ${C.line}`,borderRadius:9}}>
    <span style={{fontFamily:C.sans,fontSize:12,color:C.inkSoft}}>Classified as</span>
@@ -297,70 +303,113 @@ function UploadedResult({result,onClear}){
  </div>);
 }
 
-function Console(){
- const[sel,setSel]=useState(FAXES[0].id);const[call,setCall]=useState(null);const timers=useRef([]);const tick=useRef(null);
+
+// ── Login (invite code) ──────────────────────────────────────────────────────
+function Login({onAuth}){
+ const[code,setCode]=useState("");const[err,setErr]=useState(null);
+ const submit=(e)=>{if(e)e.preventDefault();const user=checkCode(code);if(!user){setErr("That invite code isn't valid.");return;}const auth={user,token:code.trim()};localStorage.setItem(AUTH_KEY,JSON.stringify(auth));onAuth(auth);};
+ return(<div style={{minHeight:"100vh",background:C.paper,color:C.ink,backgroundImage:`url("${GRAIN}")`,backgroundSize:"120px 120px",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
+  <style>{FONTS}</style>
+  <form onSubmit={submit} style={{width:"100%",maxWidth:380,background:C.card,border:`1px solid ${C.line}`,borderRadius:16,padding:"34px 32px",boxShadow:"0 12px 40px rgba(10,74,62,.10)",animation:"panelIn .4s ease both"}}>
+   <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:22}}><div style={{width:40,height:40,borderRadius:10,background:C.tealDeep,display:"flex",alignItems:"center",justifyContent:"center"}}><Ekg color="#EAF3EF" w={24}/></div><span style={{fontFamily:C.display,fontSize:19,fontWeight:600}}>Greenfield Cardiology</span></div>
+   <h1 style={{fontFamily:C.display,fontSize:24,fontWeight:600,margin:"0 0 6px"}}>Staff sign-in</h1>
+   <p style={{fontFamily:C.sans,fontSize:13.5,color:C.inkSoft,margin:"0 0 22px",lineHeight:1.5}}>Enter your invite code to access the intake dashboard.</p>
+   <input autoFocus value={code} onChange={e=>{setCode(e.target.value);setErr(null);}} placeholder="Invite code" style={{width:"100%",boxSizing:"border-box",fontFamily:C.mono,fontSize:15,color:C.ink,background:C.paper,border:`1px solid ${err?C.red:C.line}`,borderRadius:9,padding:"12px 14px",outline:"none"}} onFocus={e=>{if(!err)e.target.style.borderColor=C.teal;}} onBlur={e=>{if(!err)e.target.style.borderColor=C.line;}}/>
+   {err&&<div style={{marginTop:9,fontFamily:C.sans,fontSize:12.5,color:C.red}}>{err}</div>}
+   <button type="submit" style={{width:"100%",marginTop:18,fontFamily:C.sans,fontSize:14.5,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:10,padding:"13px",cursor:"pointer",boxShadow:"0 6px 20px rgba(10,74,62,.18)"}}>Sign in</button>
+  </form>
+ </div>);
+}
+
+// ── Dashboard (real runs from Postgres) ──────────────────────────────────────
+function Dashboard({auth}){
+ const[runs,setRuns]=useState([]);const[selId,setSelId]=useState(null);
+ const[loading,setLoading]=useState(true);const[loadErr,setLoadErr]=useState(null);
+ const[upBusy,setUpBusy]=useState(false);const[upErr,setUpErr]=useState(null);const fileRef=useRef(null);
  const live=useRetellCall();const[liveTo,setLiveTo]=useState(null);const[dockOpen,setDockOpen]=useState(false);
- const[up,setUp]=useState(null);const[upBusy,setUpBusy]=useState(false);const[upErr,setUpErr]=useState(null);const fileRef=useRef(null);
+ const loadRuns=async(selectId)=>{
+  setLoadErr(null);
+  try{
+   const res=await fetch(`${OCR_BASE}/runs?user_id=${encodeURIComponent(auth.user)}`);
+   if(!res.ok)throw new Error(`HTTP ${res.status}`);
+   const d=await res.json();const list=d.runs||[];
+   setRuns(list);
+   setSelId(prev=>selectId||prev||(list[0]&&list[0].id)||null);
+  }catch(e){setLoadErr(e.message||"Failed to load runs");}finally{setLoading(false);}
+ };
+ useEffect(()=>{loadRuns();},[]);
  const doUpload=async(file)=>{
-  if(!file)return;setUpErr(null);setUpBusy(true);setUp(null);
+  if(!file)return;setUpErr(null);setUpBusy(true);
   try{
    const fd=new FormData();fd.append("file",file);
-   const res=await fetch(`${OCR_BASE}/process`,{method:"POST",body:fd});
-   if(!res.ok){let m=`HTTP ${res.status}`;try{const e=await res.json();if(e.detail)m=e.detail;}catch{}throw new Error(m);}
-   setUp(await res.json());
+   const pres=await fetch(`${OCR_BASE}/process`,{method:"POST",body:fd});
+   if(!pres.ok){let m=`HTTP ${pres.status}`;try{const e=await pres.json();if(e.detail)m=typeof e.detail==="string"?e.detail:JSON.stringify(e.detail);}catch{}throw new Error(m);}
+   const result=await pres.json();
+   const sres=await fetch(`${OCR_BASE}/runs`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+     user_id:auth.user,filename:result.source,doc_type:result.classification&&result.classification.doc_type,
+     classification_confidence:result.classification&&result.classification.confidence,
+     extracted_fields:result.extracted,review_queue:result.review_queue,
+     deny_back_letter:result.deny_back_letter,pushed_downstream:result.pushed_downstream})});
+   if(!sres.ok)throw new Error(`Saved to pipeline but DB save failed (HTTP ${sres.status})`);
+   const {id}=await sres.json();
+   await loadRuns(id);
   }catch(err){setUpErr(err.message||"Upload failed");}finally{setUpBusy(false);}
  };
- const fax=FAXES.find(f=>f.id===sel);const counts={cleared:FAXES.filter(f=>f.disposition==="cleared").length,flagged:FAXES.filter(f=>f.disposition==="flagged").length,held:FAXES.filter(f=>f.disposition==="held").length};
- const clear=()=>{timers.current.forEach(clearTimeout);timers.current=[];if(tick.current){clearInterval(tick.current);tick.current=null;}};
- useEffect(()=>clear,[]);
- // Real outbound web call to the outbound agent (talk from the browser, no phone).
- const outboundLive=(to)=>{live.reset();setLiveTo(to);setDockOpen(true);live.start("outbound");};
- // Simulated outbound (demo: dial → voicemail → PHI-free message).
- const outboundSim=(to)=>{setCall({status:"dialing",seconds:0,transcript:[],to});tick.current=setInterval(()=>setCall(c=>c&&c.status!=="ended"?{...c,seconds:c.seconds+1}:c),1000);OUTBOUND.forEach(st=>timers.current.push(setTimeout(()=>setCall(c=>{if(!c)return c;const n={...c};if(st.status)n.status=st.status;if(st.line)n.transcript=[...c.transcript,st.line];if(st.status==="ended"&&tick.current){clearInterval(tick.current);tick.current=null;}return n;}),st.at)));};
- const outbound=(to)=>LIVE?outboundLive(to):outboundSim(to);
- const end=()=>{clear();setCall(null);};
+ const counts={cleared:runs.filter(r=>runDisposition(r)==="cleared").length,flagged:runs.filter(r=>runDisposition(r)==="flagged").length,held:runs.filter(r=>runDisposition(r)==="held").length};
+ const sel=runs.find(r=>r.id===selId)||null;
+ const phone=runPhone(sel);
+ const outbound=(to)=>{live.reset();setLiveTo(to);setDockOpen(true);live.start("outbound");};
  const LMAP={idle:"connecting",connecting:"connecting",live:"live",ended:"ended",error:"ended"};
- const dockCall=LIVE?(dockOpen?{status:LMAP[live.status]||"connecting",seconds:live.seconds,transcript:live.transcript,to:liveTo,error:live.error}:null):call;
- const dockEnd=LIVE?(()=>{if(live.status==="live"||live.status==="connecting"){live.stop();}else{setDockOpen(false);live.reset();}}):end;
+ const dockCall=dockOpen?{status:LMAP[live.status]||"connecting",seconds:live.seconds,transcript:live.transcript,to:liveTo,error:live.error}:null;
+ const dockEnd=()=>{if(live.status==="live"||live.status==="connecting"){live.stop();}else{setDockOpen(false);live.reset();}};
+ const fmtTime=iso=>{if(!iso)return "";try{return new Date(iso).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}catch{return iso;}};
  return(<div style={{display:"grid",gridTemplateColumns:"320px 1fr",minHeight:"calc(100vh - 69px)"}}>
-  <aside style={{borderRight:`1px solid ${C.line}`,padding:"18px 16px"}}>
+  <aside style={{borderRight:`1px solid ${C.line}`,padding:"18px 16px",display:"flex",flexDirection:"column",maxHeight:"calc(100vh - 69px)"}}>
    <div style={{display:"flex",justifyContent:"space-between",padding:"0 8px 14px"}}>{[["Cleared",counts.cleared,C.green],["Flagged",counts.flagged,C.amber],["Held",counts.held,C.red]].map(([l,n,c])=>(<div key={l} style={{textAlign:"center"}}><div style={{fontFamily:C.mono,fontSize:18,color:c,fontWeight:500}}>{n}</div><div style={{fontFamily:C.sans,fontSize:9,letterSpacing:".06em",textTransform:"uppercase",color:C.inkFaint}}>{l}</div></div>))}</div>
-   <div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".09em",textTransform:"uppercase",color:C.inkFaint,padding:"0 8px 10px"}}>Incoming · Today</div>
-   {FAXES.map((f,i)=>{const a=f.id===sel;const x=DISPOSITION[f.disposition];return(<button key={f.id} onClick={()=>{setSel(f.id);setUp(null);setUpErr(null);}} style={{display:"block",width:"100%",textAlign:"left",cursor:"pointer",padding:"13px 14px",marginBottom:8,borderRadius:9,border:`1px solid ${a?C.teal:C.line}`,background:a?C.card:"transparent",borderLeft:`3px solid ${a?x.color:"transparent"}`,animation:"fadeUp .4s ease both",animationDelay:`${.05*i}s`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}><span style={{fontFamily:C.sans,fontSize:10.5,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",color:C.teal}}>{f.typeLabel}</span><span style={{width:8,height:8,borderRadius:"50%",background:x.color}}/></div><div style={{fontFamily:C.display,fontSize:16,color:C.ink}}>{f.patient}</div><div style={{fontFamily:C.sans,fontSize:11.5,color:C.inkFaint,marginTop:3}}>{f.from}</div></button>);})}
+   <div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".09em",textTransform:"uppercase",color:C.inkFaint,padding:"0 8px 10px"}}>Your fax runs</div>
+   <div style={{flex:1,overflowY:"auto",margin:"0 -4px",padding:"0 4px"}}>
+    {loading?<div style={{fontFamily:C.sans,fontSize:13,color:C.inkFaint,padding:"10px 8px"}}>Loading…</div>:
+     loadErr?<div style={{fontFamily:C.mono,fontSize:11.5,color:C.red,padding:"10px 8px",wordBreak:"break-word"}}>{loadErr}</div>:
+     runs.length===0?<div style={{fontFamily:C.sans,fontSize:12.5,color:C.inkFaint,padding:"10px 8px",lineHeight:1.5}}>No runs yet. Upload a fax below to process it and add it here.</div>:
+     runs.map(r=>{const a=r.id===selId;const x=DISPOSITION[runDisposition(r)];return(<button key={r.id} onClick={()=>setSelId(r.id)} style={{display:"block",width:"100%",textAlign:"left",cursor:"pointer",padding:"13px 14px",marginBottom:8,borderRadius:9,border:`1px solid ${a?C.teal:C.line}`,background:a?C.card:"transparent",borderLeft:`3px solid ${a?x.color:"transparent"}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}><span style={{fontFamily:C.sans,fontSize:10.5,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",color:C.teal}}>{(r.doc_type||"unknown").replace(/_/g," ")}</span><span style={{width:8,height:8,borderRadius:"50%",background:x.color}}/></div><div style={{fontFamily:C.display,fontSize:15,color:C.ink,wordBreak:"break-all"}}>{r.filename||"document"}</div><div style={{fontFamily:C.sans,fontSize:11.5,color:C.inkFaint,marginTop:3}}>{fmtTime(r.uploaded_at)}</div></button>);})}
+   </div>
    <div style={{marginTop:14,padding:"14px",border:`1px dashed ${C.line}`,borderRadius:9,textAlign:"center"}}>
     <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.tiff,.tif" style={{display:"none"}} onChange={e=>{const f=e.target.files&&e.target.files[0];e.target.value="";doUpload(f);}}/>
-    <div style={{fontFamily:C.sans,fontSize:12,color:C.inkSoft,marginBottom:8}}>{upBusy?"Processing through the live pipeline…":"Drop a fax to process"}</div>
-    <button disabled={upBusy} onClick={()=>fileRef.current&&fileRef.current.click()} style={{fontFamily:C.sans,fontSize:12,fontWeight:600,color:C.card,background:upBusy?C.inkFaint:C.tealDeep,border:"none",borderRadius:7,padding:"8px 16px",cursor:upBusy?"default":"pointer"}}>{upBusy?"Uploading…":"Upload PDF / image"}</button>
+    <div style={{fontFamily:C.sans,fontSize:12,color:C.inkSoft,marginBottom:8}}>{upBusy?"Processing + saving…":"Process a new fax"}</div>
+    <button disabled={upBusy} onClick={()=>fileRef.current&&fileRef.current.click()} style={{fontFamily:C.sans,fontSize:12,fontWeight:600,color:C.card,background:upBusy?C.inkFaint:C.tealDeep,border:"none",borderRadius:7,padding:"8px 16px",cursor:upBusy?"default":"pointer"}}>{upBusy?"Working…":"Upload PDF / image"}</button>
     {upErr&&<div style={{marginTop:8,fontFamily:C.mono,fontSize:11,color:C.red,wordBreak:"break-word"}}>{upErr}</div>}
    </div>
   </aside>
-  <main key={up?"upload":sel} style={{padding:"28px 40px",animation:"panelIn .32s ease both",maxWidth:860}}>
-   {up?<UploadedResult result={up} onClear={()=>setUp(null)}/>:(<>
-   <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20}}><div><div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:C.teal,marginBottom:6}}>{fax.typeLabel}</div><h1 style={{fontFamily:C.display,fontSize:28,fontWeight:600,margin:0}}>{fax.patient}</h1><div style={{fontFamily:C.sans,fontSize:13,color:C.inkSoft,marginTop:6}}>From {fax.from} · received {fax.received}</div></div><Disposition d={fax.disposition}/></div>
-   <div style={{display:"flex",alignItems:"center",gap:14,marginTop:20,padding:"14px 18px",background:C.card,border:`1px solid ${C.line}`,borderRadius:9}}><span style={{fontFamily:C.sans,fontSize:12,color:C.inkSoft}}>Classified as</span><span style={{fontFamily:C.display,fontSize:15,fontWeight:600}}>{fax.classification.label}</span><div style={{flex:1,height:6,background:C.paper,borderRadius:3,overflow:"hidden",marginLeft:8}}><div style={{width:`${fax.classification.confidence*100}%`,height:"100%",background:C.teal,borderRadius:3}}/></div><span style={{fontFamily:C.mono,fontSize:13,color:C.teal,fontWeight:500}}>{(fax.classification.confidence*100).toFixed(0)}%</span></div>
-   {fax.callback&&(<div style={{marginTop:16,padding:"16px 18px",background:"rgba(15,110,91,.05)",border:`1px solid rgba(15,110,91,.22)`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}><div><div style={{fontFamily:C.sans,fontSize:13,fontWeight:600,color:C.tealDeep}}>{fax.callback.reason}</div><div style={{fontFamily:C.mono,fontSize:12,color:C.inkSoft,marginTop:3}}>{fax.phone} · up to 3 attempts, 48h apart · PHI-free voicemail</div></div><button onClick={()=>outbound(fax.phone)} style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:C.sans,fontSize:13,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:8,padding:"10px 16px",cursor:"pointer",whiteSpace:"nowrap"}}><PhoneWave/>Initiate callback</button></div>)}
-   <ST>Extracted fields</ST><div>{fax.fields.map(f=><Field key={f.label} f={f}/>)}</div>
-   {fax.labs&&(<><ST>Complete blood count</ST><LabTable labs={fax.labs}/></>)}
-   <ST>Human review queue</ST>{fax.review.length===0?(<div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px",background:"rgba(47,125,50,.06)",border:`1px solid rgba(47,125,50,.2)`,borderRadius:9}}><span style={{width:8,height:8,borderRadius:"50%",background:C.green}}/><span style={{fontFamily:C.sans,fontSize:13}}>Nothing flagged. {fax.note}</span></div>):(<div style={{border:`1px solid ${C.line}`,borderRadius:9,overflow:"hidden"}}>{fax.review.map((r,i)=>(<div key={r.field} style={{display:"flex",gap:14,padding:"13px 16px",alignItems:"baseline",borderTop:i?`1px solid ${C.line}`:"none",background:C.card}}><span style={{fontFamily:C.mono,fontSize:13,color:C.red,fontWeight:500,minWidth:130}}>{r.field}</span><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{r.reason}</span></div>))}</div>)}
-   {fax.denyBack&&(<><ST>Deny-back letter</ST><DenyBackCard patient={fax.patient} missing={fax.denyBack}/></>)}
-   <div style={{height:60}}/>
-   </>)}
+  <main key={selId||"empty"} style={{padding:"28px 40px",animation:"panelIn .32s ease both",maxWidth:860}}>
+   {sel?(<>
+    {runDisposition(sel)==="held"&&phone&&(<div style={{marginBottom:18,padding:"16px 18px",background:"rgba(15,110,91,.05)",border:`1px solid rgba(15,110,91,.22)`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}><div><div style={{fontFamily:C.sans,fontSize:13,fontWeight:600,color:C.tealDeep}}>Referral held — patient contact required</div><div style={{fontFamily:C.mono,fontSize:12,color:C.inkSoft,marginTop:3}}>{phone} · up to 3 attempts · PHI-free voicemail</div></div><button onClick={()=>outbound(phone)} style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:C.sans,fontSize:13,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:8,padding:"10px 16px",cursor:"pointer",whiteSpace:"nowrap"}}><PhoneWave/>Initiate callback</button></div>)}
+    <UploadedResult result={runToResult(sel)} onClear={null}/>
+   </>):(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"60vh",textAlign:"center"}}>
+     <div style={{width:64,height:64,borderRadius:16,background:C.card,border:`1px solid ${C.line}`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:18}}><Ekg w={36}/></div>
+     <h1 style={{fontFamily:C.display,fontSize:24,fontWeight:600,margin:"0 0 8px"}}>{runs.length===0?"No runs yet":"No fax selected"}</h1>
+     <p style={{fontFamily:C.sans,fontSize:14,color:C.inkSoft,maxWidth:360,lineHeight:1.5}}>{runs.length===0?"Upload a referral, insurance card, or lab result to run it through the live OCR pipeline — it'll be saved and listed here.":"Pick a run from the left to see its full result."}</p>
+    </div>
+   )}
   </main>
   {dockCall&&<CallDock call={dockCall} onEnd={dockEnd}/>}
  </div>);
 }
 
 export default function App(){
+ const[auth,setAuth]=useState(loadAuth());
  const[page,setPage]=useState("home");const[captured,setCaptured]=useState(null);
  const go=p=>setPage(p);
+ const logout=()=>{localStorage.removeItem(AUTH_KEY);setAuth(null);setPage("home");};
+ if(!auth)return <Login onAuth={a=>{setAuth(a);setPage("home");}}/>;
  return(<div style={{minHeight:"100vh",background:C.paper,color:C.ink,fontFamily:C.sans,backgroundImage:`url("${GRAIN}")`,backgroundSize:"120px 120px"}}>
   <style>{FONTS}</style>
-  <Nav page={page} go={go}/>
+  <Nav page={page} go={go} auth={auth} onLogout={logout}/>
   {page==="home"&&<Landing onCall={()=>go("call")} go={go}/>}
   {page==="call"&&(LIVE
     ? <LiveCallScreen onExit={()=>go("home")}/>
     : <CallScreen onCancel={()=>go("home")} onFinish={c=>{setCaptured(c);go("summary");}}/>)}
   {page==="summary"&&<Summary captured={captured||CAPTURED} go={go}/>}
-  {page==="console"&&<Console/>}
+  {page==="console"&&<Dashboard auth={auth}/>}
  </div>);
 }
