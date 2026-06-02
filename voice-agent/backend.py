@@ -52,19 +52,37 @@ def verify_insurance(req: InsuranceReq):
 
 
 class AvailabilityReq(BaseModel):
-    provider: str
-    location: str = "sf"
+    provider: str = ""          # optional so a partial call never 422s the agent
+    location: str | None = "sf"
     date_range: str | None = None
     appointment_type: str | None = None
 
 
+def _match_provider(name: str):
+    """Map any phrasing of a provider's name ('Dr. Sarah Chen', 'Chen', 'Doctor
+    Chen') to a PROVIDER_SCHEDULE key, so the schedule lookup doesn't miss."""
+    n = (name or "").lower()
+    if "webb" in n:
+        return "dr. webb"
+    if "chen" in n:
+        return "dr. chen"
+    if "park" in n:
+        return "jennifer park"
+    return None
+
+
 @app.post("/check_availability")
 def check_availability(req: AvailabilityReq):
-    prov = req.provider.strip().lower()
-    loc = "oakland" if "oak" in req.location.lower() else "sf"
-    days = PROVIDER_SCHEDULE.get(prov, {}).get(loc, [])
+    key = _match_provider(req.provider)
+    loc = "oakland" if "oak" in (req.location or "").lower() else "sf"
+    days = PROVIDER_SCHEDULE.get(key, {}).get(loc, []) if key else []
     if not days:
-        return {"slots": [], "message": f"{req.provider} does not see patients at that location."}
+        # Offer the provider's other office if they don't work the requested one.
+        other = "sf" if loc == "oakland" else "oakland"
+        other_days = PROVIDER_SCHEDULE.get(key, {}).get(other, []) if key else []
+        if other_days:
+            return {"slots": [], "message": f"{req.provider} doesn't see patients at our {LOCATIONS[loc]['name']} office, but is available at {LOCATIONS[other]['name']}."}
+        return {"slots": [], "message": f"I couldn't find availability for {req.provider or 'that provider'} at that location."}
     # return two synthetic upcoming slots on valid days
     today = datetime.now()
     slots = []
