@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Pareto Health">
+  <rect width="512" height="512" rx="132" fill="#0F6E5B"/>
+  <g fill="none" stroke="#FCFBF7" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <!-- infinity: two open loops crossing at center -->
+    <circle cx="207" cy="198" r="58"/>
+    <circle cx="305" cy="198" r="58"/>
+    <!-- descending stem (the P leg) from the left loop -->
+    <path d="M207 250 L207 374"/>
+  </g>
+</svg>

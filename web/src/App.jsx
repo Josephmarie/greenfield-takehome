@@ -24,6 +24,16 @@ const GRAIN="data:image/svg+xml;utf8,"+encodeURIComponent(`<svg xmlns='http://ww
 
 const Ekg=({color=C.teal,w=30})=>(<svg width={w} height={w*0.5} viewBox="0 0 60 30" fill="none"><path d="M0 15 H14 L19 5 L25 25 L31 15 H60" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>);
 const PhoneWave=({color="#fff",s=15})=>(<svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M5 4h3l2 5-2 1a11 11 0 005 5l1-2 5 2v3a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" stroke={color} strokeWidth="1.8" strokeLinejoin="round"/></svg>);
+// Brand mark — the Pareto infinity-loop + P leg, matching /favicon.svg.
+const Logo=({s=36,bg=C.tealDeep,fg="#EAF3EF",radius})=>(<span style={{width:s,height:s,borderRadius:radius??Math.round(s*0.26),background:bg,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><svg width={Math.round(s*0.68)} height={Math.round(s*0.68)} viewBox="0 0 512 512" fill="none"><g stroke={fg} strokeWidth="34" strokeLinecap="round" strokeLinejoin="round"><circle cx="207" cy="198" r="58"/><circle cx="305" cy="198" r="58"/><path d="M207 250 L207 374"/></g></svg></span>);
+
+// True when the viewport is phone-width. Lets components apply mobile-only
+// style overrides; desktop keeps its exact original values.
+function useIsMobile(bp=760){
+ const[m,setM]=useState(typeof window!=="undefined"&&window.innerWidth<=bp);
+ useEffect(()=>{const f=()=>setM(window.innerWidth<=bp);window.addEventListener("resize",f);return()=>window.removeEventListener("resize",f);},[bp]);
+ return m;
+}
 
 // ── live Retell web call ─────────────────────────────────────────────────────
 // Mints a web-call token from the backend (API_BASE) and drives a real
@@ -59,7 +69,7 @@ function useRetellCall(){
 // ── shared OCR components ────────────────────────────────────────────────────
 function ConfidenceChip({confidence}){const m={high:{t:"High",c:C.green,bg:"rgba(47,125,50,.10)"},medium:{t:"Medium",c:C.amber,bg:"rgba(168,106,18,.12)"},low:{t:"Low",c:C.red,bg:"rgba(166,64,47,.12)"},missing:{t:"Missing",c:C.red,bg:"rgba(166,64,47,.12)"}}[confidence];return(<span style={{fontFamily:C.mono,fontSize:10.5,fontWeight:500,letterSpacing:".04em",textTransform:"uppercase",color:m.c,background:m.bg,padding:"2px 7px",borderRadius:4,whiteSpace:"nowrap"}}>{m.t}</span>);}
 function Field({f}){const[open,setOpen]=useState(false);const missing=f.confidence==="missing"||f.value===null;return(<div style={{borderBottom:`1px solid ${C.line}`,padding:"11px 0"}}><div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:16}}><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft,minWidth:150}}>{f.label}</span><span style={{flex:1}}><span style={{fontFamily:C.mono,fontSize:13.5,color:missing?C.red:C.ink,fontStyle:missing?"italic":"normal"}}>{missing?"not found":f.value}</span></span><span style={{display:"flex",alignItems:"center",gap:10}}><ConfidenceChip confidence={f.confidence}/>{f.quote&&<button onClick={()=>setOpen(!open)} style={{border:"none",background:"none",cursor:"pointer",padding:0,fontFamily:C.mono,fontSize:11,color:C.inkFaint,textDecoration:"underline",textUnderlineOffset:2}}>{open?"hide":"source"}</button>}</span></div>{open&&f.quote&&<div style={{marginTop:8,padding:"8px 11px",background:C.paper,borderLeft:`2px solid ${C.teal}`,borderRadius:"0 4px 4px 0",fontFamily:C.mono,fontSize:12,color:C.inkSoft}}>“{f.quote}”</div>}</div>);}
-function LabTable({labs}){return(<div style={{border:`1px solid ${C.line}`,borderRadius:8,overflow:"hidden"}}><div style={{display:"grid",gridTemplateColumns:"1.4fr .7fr .5fr 1fr 1.3fr",background:C.paper,padding:"9px 14px",fontFamily:C.sans,fontSize:10.5,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",color:C.inkFaint}}><span>Component</span><span>Result</span><span>Unit</span><span>Reference</span><span>Status</span></div>{labs.map(l=>{const u=l.out&&!l.labFlag;return(<div key={l.c} style={{display:"grid",gridTemplateColumns:"1.4fr .7fr .5fr 1fr 1.3fr",padding:"10px 14px",alignItems:"center",borderTop:`1px solid ${C.line}`,background:l.out?"rgba(166,64,47,.04)":C.card}}><span style={{fontFamily:C.sans,fontSize:13,color:C.ink,fontWeight:l.out?600:400}}>{l.c}</span><span style={{fontFamily:C.mono,fontSize:13,color:l.out?C.red:C.ink}}>{l.v}</span><span style={{fontFamily:C.mono,fontSize:11.5,color:C.inkFaint}}>{l.unit}</span><span style={{fontFamily:C.mono,fontSize:12,color:C.inkSoft}}>{l.range}</span><span>{l.out?(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{fontFamily:C.mono,fontSize:11,fontWeight:500,color:C.red,background:"rgba(166,64,47,.12)",padding:"1px 6px",borderRadius:4}}>{l.computed==="H"?"High":"Low"}</span>{u&&<span title="Out of range by our computation; lab printed no flag" style={{fontFamily:C.mono,fontSize:10,color:C.amber,fontStyle:"italic"}}>lab unflagged</span>}</span>):<span style={{fontFamily:C.mono,fontSize:11.5,color:C.green}}>in range</span>}</span></div>);})}</div>);}
+function LabTable({labs}){return(<div style={{border:`1px solid ${C.line}`,borderRadius:8,overflow:"hidden"}}><div style={{overflowX:"auto"}}><div style={{minWidth:480}}><div style={{display:"grid",gridTemplateColumns:"1.4fr .7fr .5fr 1fr 1.3fr",background:C.paper,padding:"9px 14px",fontFamily:C.sans,fontSize:10.5,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",color:C.inkFaint}}><span>Component</span><span>Result</span><span>Unit</span><span>Reference</span><span>Status</span></div>{labs.map(l=>{const u=l.out&&!l.labFlag;return(<div key={l.c} style={{display:"grid",gridTemplateColumns:"1.4fr .7fr .5fr 1fr 1.3fr",padding:"10px 14px",alignItems:"center",borderTop:`1px solid ${C.line}`,background:l.out?"rgba(166,64,47,.04)":C.card}}><span style={{fontFamily:C.sans,fontSize:13,color:C.ink,fontWeight:l.out?600:400}}>{l.c}</span><span style={{fontFamily:C.mono,fontSize:13,color:l.out?C.red:C.ink}}>{l.v}</span><span style={{fontFamily:C.mono,fontSize:11.5,color:C.inkFaint}}>{l.unit}</span><span style={{fontFamily:C.mono,fontSize:12,color:C.inkSoft}}>{l.range}</span><span>{l.out?(<span style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{fontFamily:C.mono,fontSize:11,fontWeight:500,color:C.red,background:"rgba(166,64,47,.12)",padding:"1px 6px",borderRadius:4}}>{l.computed==="H"?"High":"Low"}</span>{u&&<span title="Out of range by our computation; lab printed no flag" style={{fontFamily:C.mono,fontSize:10,color:C.amber,fontStyle:"italic"}}>lab unflagged</span>}</span>):<span style={{fontFamily:C.mono,fontSize:11.5,color:C.green}}>in range</span>}</span></div>);})}</div></div></div>);}
 function DenyBackCard({patient,missing}){return(<div style={{position:"relative",marginTop:6,padding:"22px 24px",background:C.card,border:`1px solid ${C.line}`,borderRadius:8}}><div style={{position:"absolute",top:16,right:16,transform:"rotate(6deg)",border:`2px solid ${C.red}`,color:C.red,fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".08em",padding:"4px 9px",borderRadius:5,opacity:.85}}>HELD · NOT SCHEDULED</div><div style={{fontFamily:C.display,fontSize:17}}>Pareto Health</div><div style={{fontFamily:C.mono,fontSize:11,color:C.inkFaint,marginBottom:16}}>San Francisco · Los Angeles · +1 (424) 289-1652</div><div style={{fontFamily:C.sans,fontSize:13,marginBottom:4}}><strong>Re:</strong> Incomplete referral — {patient}</div><p style={{fontFamily:C.sans,fontSize:13,color:C.inkSoft,lineHeight:1.6,margin:"10px 0"}}>We are unable to process this referral as received because the following required field(s) are missing or could not be verified:</p><ul style={{margin:"10px 0",paddingLeft:0,listStyle:"none"}}>{missing.map(m=><li key={m} style={{fontFamily:C.mono,fontSize:13,color:C.red,padding:"3px 0"}}>— {m}</li>)}</ul><p style={{fontFamily:C.sans,fontSize:13,color:C.inkSoft,lineHeight:1.6,margin:"10px 0 0"}}>Please resubmit with the item(s) above completed and we will schedule the patient promptly.</p></div>);}
 const DISPOSITION={cleared:{label:"Cleared",color:C.green},flagged:{label:"Flagged",color:C.amber},held:{label:"Held — deny-back",color:C.red}};
 function Disposition({d}){const x=DISPOSITION[d];return(<span style={{display:"inline-flex",alignItems:"center",gap:7,fontFamily:C.sans,fontSize:12,fontWeight:600,color:x.color,background:`${x.color}14`,padding:"5px 11px",borderRadius:20}}><span style={{width:7,height:7,borderRadius:"50%",background:x.color}}/>{x.label}</span>);}
@@ -99,15 +109,15 @@ const CAPTURED={outcome:"Appointment booked",confirmation:"GC-40192",
 const CALL_STATUS={connecting:{t:"Connecting",c:C.amber},dialing:{t:"Dialing",c:C.amber},ringing:{t:"Ringing",c:C.amber},live:{t:"Live",c:C.green},voicemail:{t:"Voicemail",c:C.teal},ended:{t:"Call ended",c:C.inkFaint}};
 
 // ── Nav ──────────────────────────────────────────────────────────────────────
-function Nav({page,go,auth,onLogout,onSignIn}){const link=(id,label)=>(<button onClick={()=>go(id)} style={{border:"none",background:"none",cursor:"pointer",fontFamily:C.sans,fontSize:13,fontWeight:600,color:page===id?C.tealDeep:C.inkSoft,padding:"6px 2px",borderBottom:`2px solid ${page===id?C.teal:"transparent"}`}}>{label}</button>);
- return(<header style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 34px",borderBottom:`1px solid ${C.line}`,background:"rgba(252,251,247,.8)",backdropFilter:"blur(6px)",position:"sticky",top:0,zIndex:20}}>
-  <button onClick={()=>go("home")} style={{display:"flex",alignItems:"center",gap:12,border:"none",background:"none",cursor:"pointer"}}><div style={{width:36,height:36,borderRadius:9,background:C.tealDeep,display:"flex",alignItems:"center",justifyContent:"center"}}><Ekg color="#EAF3EF" w={22}/></div><span style={{fontFamily:C.display,fontSize:18,fontWeight:600,color:C.ink}}>Pareto Health</span></button>
-  <nav style={{display:"flex",gap:22,alignItems:"center"}}>{link("home","Home")}{link("console","Dashboard")}
-   {auth?(<div style={{display:"flex",alignItems:"center",gap:11,marginLeft:6,paddingLeft:18,borderLeft:`1px solid ${C.line}`}}>
-    <span style={{display:"inline-flex",alignItems:"center",gap:7,fontFamily:C.mono,fontSize:12,color:C.inkSoft}}><span style={{width:6,height:6,borderRadius:"50%",background:C.green}}/>{auth.name||auth.email}</span>
-    <button onClick={onLogout} style={{fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:C.tealDeep,background:"none",border:`1px solid ${C.line}`,borderRadius:8,padding:"6px 12px",cursor:"pointer"}}>Log out</button>
+function Nav({page,go,auth,onLogout,onSignIn}){const mob=useIsMobile();const link=(id,label)=>(<button onClick={()=>go(id)} style={{border:"none",background:"none",cursor:"pointer",fontFamily:C.sans,fontSize:13,fontWeight:600,color:page===id?C.tealDeep:C.inkSoft,padding:"6px 2px",borderBottom:`2px solid ${page===id?C.teal:"transparent"}`}}>{label}</button>);
+ return(<header style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:mob?"11px 15px":"16px 34px",borderBottom:`1px solid ${C.line}`,background:"rgba(252,251,247,.8)",backdropFilter:"blur(6px)",position:"sticky",top:0,zIndex:20}}>
+  <button onClick={()=>go("home")} style={{display:"flex",alignItems:"center",gap:mob?9:12,border:"none",background:"none",cursor:"pointer"}}><Logo s={mob?32:36}/>{!mob&&<span style={{fontFamily:C.display,fontSize:18,fontWeight:600,color:C.ink}}>Pareto Health</span>}</button>
+  <nav style={{display:"flex",gap:mob?12:22,alignItems:"center"}}>{!mob&&link("home","Home")}{link("console","Dashboard")}
+   {auth?(<div style={{display:"flex",alignItems:"center",gap:mob?8:11,marginLeft:mob?2:6,paddingLeft:mob?10:18,borderLeft:`1px solid ${C.line}`}}>
+    {!mob&&<span style={{display:"inline-flex",alignItems:"center",gap:7,fontFamily:C.mono,fontSize:12,color:C.inkSoft}}><span style={{width:6,height:6,borderRadius:"50%",background:C.green}}/>{auth.name||auth.email}</span>}
+    <button onClick={onLogout} style={{fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:C.tealDeep,background:"none",border:`1px solid ${C.line}`,borderRadius:8,padding:mob?"6px 10px":"6px 12px",cursor:"pointer"}}>Log out</button>
    </div>):(
-    <button onClick={onSignIn} style={{marginLeft:6,fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:8,padding:"7px 14px",cursor:"pointer"}}>Staff sign in</button>
+    <button onClick={onSignIn} style={{marginLeft:mob?2:6,fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:8,padding:"7px 14px",cursor:"pointer",whiteSpace:"nowrap"}}>{mob?"Sign in":"Staff sign in"}</button>
    )}
   </nav>
  </header>);
@@ -115,15 +125,16 @@ function Nav({page,go,auth,onLogout,onSignIn}){const link=(id,label)=>(<button o
 
 // ── Landing ──────────────────────────────────────────────────────────────────
 function Landing({onCall,go}){
+ const mob=useIsMobile();
  const feats=[["Always answers","24/7 scheduling, follow-ups, and insurance questions — no hold music."],["Emergency-aware","Recognizes red-flag symptoms and advises 911 immediately — never books them."],["Referral callbacks","Calls referred patients back, up to 3 attempts, with PHI-free voicemails."],["Fax intake","Reads referrals, insurance cards, and labs — flags anything uncertain for staff."]];
  return(<div style={{animation:"fadeUp .5s ease both"}}>
-  <section style={{display:"grid",gridTemplateColumns:"1.1fr .9fr",gap:40,alignItems:"center",padding:"70px 60px 50px",maxWidth:1180,margin:"0 auto"}}>
+  <section style={{display:"grid",gridTemplateColumns:mob?"1fr":"1.1fr .9fr",gap:mob?22:40,alignItems:"center",padding:mob?"34px 18px 18px":"70px 60px 50px",maxWidth:1180,margin:"0 auto"}}>
    <div>
     <div style={{display:"inline-flex",alignItems:"center",gap:8,fontFamily:C.mono,fontSize:11.5,letterSpacing:".05em",color:C.teal,background:"rgba(15,110,91,.08)",padding:"5px 11px",borderRadius:20,marginBottom:22}}><span style={{width:6,height:6,borderRadius:"50%",background:C.green,animation:"pulse 1.4s ease infinite"}}/>Front desk · online now</div>
-    <h1 style={{fontFamily:C.display,fontSize:52,fontWeight:600,lineHeight:1.04,margin:"0 0 18px",letterSpacing:"-0.01em"}}>Care that answers on the <span style={{fontStyle:"italic",color:C.teal}}>first ring.</span></h1>
-    <p style={{fontFamily:C.sans,fontSize:16.5,lineHeight:1.6,color:C.inkSoft,maxWidth:480,margin:"0 0 30px"}}>Pareto Health's AI front desk schedules visits, verifies insurance, handles referrals, and knows when to send you straight to 911. Talk to it now.</p>
-    <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-     <button onClick={onCall} style={{display:"inline-flex",alignItems:"center",gap:9,fontFamily:C.sans,fontSize:15,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:10,padding:"14px 24px",cursor:"pointer",boxShadow:"0 6px 20px rgba(10,74,62,.22)"}}><PhoneWave/>Talk to the front desk on the web</button>
+    <h1 style={{fontFamily:C.display,fontSize:mob?33:52,fontWeight:600,lineHeight:1.06,margin:"0 0 16px",letterSpacing:"-0.01em"}}>Care that answers on the <span style={{fontStyle:"italic",color:C.teal}}>first ring.</span></h1>
+    <p style={{fontFamily:C.sans,fontSize:mob?15.5:16.5,lineHeight:1.6,color:C.inkSoft,maxWidth:mob?"100%":480,margin:"0 0 26px"}}>Pareto Health's AI front desk schedules visits, verifies insurance, handles referrals, and knows when to send you straight to 911. Talk to it now.</p>
+    <div style={{display:"flex",gap:mob?10:14,alignItems:mob?"stretch":"center",flexDirection:mob?"column":"row",flexWrap:"wrap"}}>
+     <button onClick={onCall} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:9,fontFamily:C.sans,fontSize:15,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:10,padding:"14px 24px",cursor:"pointer",boxShadow:"0 6px 20px rgba(10,74,62,.22)"}}><PhoneWave/>Talk to the front desk on the web</button>
      <button onClick={()=>go("console")} style={{fontFamily:C.sans,fontSize:15,fontWeight:600,color:C.tealDeep,background:"none",border:`1px solid ${C.line}`,borderRadius:10,padding:"14px 22px",cursor:"pointer"}}>View intake console</button>
     </div>
     <a href="tel:+14242891652"
@@ -138,17 +149,17 @@ function Landing({onCall,go}){
     </a>
     <div style={{marginTop:10,fontFamily:C.sans,fontSize:12,color:C.inkFaint}}>Same AI front desk, by phone · Mon–Fri 8am–5pm PT</div>
    </div>
-   <div style={{position:"relative",height:340,display:"flex",alignItems:"center",justifyContent:"center"}}>
-    {[0,1,2].map(i=>(<div key={i} style={{position:"absolute",width:150,height:150,borderRadius:"50%",border:`1.5px solid ${C.teal}`,animation:`ring 3s ease-out ${i*1}s infinite`}}/>))}
-    <div style={{width:150,height:150,borderRadius:"50%",background:C.tealDeep,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 12px 40px rgba(10,74,62,.28)",zIndex:1}}><Ekg color="#EAF3EF" w={70}/></div>
+   <div style={{position:"relative",height:mob?150:340,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+    {[0,1,2].map(i=>(<div key={i} style={{position:"absolute",width:mob?116:150,height:mob?116:150,borderRadius:"50%",border:`1.5px solid ${C.teal}`,animation:`ring 3s ease-out ${i*1}s infinite`}}/>))}
+    <div style={{width:mob?116:150,height:mob?116:150,borderRadius:"50%",background:C.tealDeep,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 12px 40px rgba(10,74,62,.28)",zIndex:1}}><Ekg color="#EAF3EF" w={mob?54:70}/></div>
    </div>
   </section>
   <section style={{borderTop:`1px solid ${C.line}`,background:C.card}}>
-   <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:0,maxWidth:1180,margin:"0 auto"}}>
-    {feats.map(([t,d],i)=>(<div key={t} style={{padding:"30px 26px",borderRight:i<3?`1px solid ${C.line}`:"none"}}><div style={{fontFamily:C.display,fontSize:17,fontWeight:600,marginBottom:8}}>{t}</div><div style={{fontFamily:C.sans,fontSize:13,lineHeight:1.55,color:C.inkSoft}}>{d}</div></div>))}
+   <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(4,1fr)",gap:0,maxWidth:1180,margin:"0 auto"}}>
+    {feats.map(([t,d],i)=>(<div key={t} style={{padding:mob?"20px 18px":"30px 26px",borderRight:mob?"none":(i<3?`1px solid ${C.line}`:"none"),borderBottom:mob&&i<feats.length-1?`1px solid ${C.line}`:"none"}}><div style={{fontFamily:C.display,fontSize:17,fontWeight:600,marginBottom:6}}>{t}</div><div style={{fontFamily:C.sans,fontSize:13,lineHeight:1.55,color:C.inkSoft}}>{d}</div></div>))}
    </div>
   </section>
-  <footer style={{padding:"34px 60px",maxWidth:1180,margin:"0 auto",display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:20}}>
+  <footer style={{padding:mob?"24px 18px":"34px 60px",maxWidth:1180,margin:"0 auto",display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:20}}>
    {[["San Francisco","+1 (424) 289-1652"],["Los Angeles","+1 (424) 289-1652"]].map(([a,b])=>(<div key={a}><div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:C.teal,marginBottom:6}}>{a}</div><div style={{fontFamily:C.mono,fontSize:12.5,color:C.inkSoft,lineHeight:1.6}}>{b}</div></div>))}
    <div style={{fontFamily:C.mono,fontSize:11,color:C.inkFaint,alignSelf:"flex-end"}}>Mon–Fri · 8am–5pm PT</div>
   </footer>
@@ -208,7 +219,7 @@ function LiveCallScreen({onExit}){
 }
 
 // ── Summary (editable) ───────────────────────────────────────────────────────
-function EditableRow({label,value,onChange,flag}){return(<div style={{display:"grid",gridTemplateColumns:"180px 1fr",gap:16,alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${C.line}`}}>
+function EditableRow({label,value,onChange,flag}){const mob=useIsMobile();return(<div style={{display:"grid",gridTemplateColumns:mob?"1fr":"180px 1fr",gap:mob?6:16,alignItems:mob?"stretch":"center",padding:"12px 0",borderBottom:`1px solid ${C.line}`}}>
   <span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{label}</span>
   <div style={{display:"flex",alignItems:"center",gap:10}}>
    <input value={value} onChange={e=>onChange(e.target.value)} style={{flex:1,fontFamily:C.mono,fontSize:13.5,color:C.ink,background:C.card,border:`1px solid ${C.line}`,borderRadius:7,padding:"9px 12px",outline:"none"}} onFocus={e=>e.target.style.borderColor=C.teal} onBlur={e=>e.target.style.borderColor=C.line}/>
@@ -216,10 +227,11 @@ function EditableRow({label,value,onChange,flag}){return(<div style={{display:"g
   </div>
  </div>);}
 function Summary({captured,go}){
+ const mob=useIsMobile();
  const[f,setF]=useState(captured.fields);const[saved,setSaved]=useState(false);const[openT,setOpenT]=useState(false);
  const set=(k,v)=>{setF(p=>({...p,[k]:v}));setSaved(false);};
  const rows=[["patient_name","Patient name"],["dob","Date of birth"],["reason","Reason for visit"],["provider","Provider"],["location","Location"],["slot","Appointment"],["insurance","Insurance",f.insurance.includes("pending")?"Verify before visit":null]];
- return(<div style={{maxWidth:760,margin:"0 auto",padding:"34px 30px 60px",animation:"panelIn .35s ease both"}}>
+ return(<div style={{maxWidth:760,margin:"0 auto",padding:mob?"22px 16px 50px":"34px 30px 60px",animation:"panelIn .35s ease both"}}>
   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
    <div><div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:C.teal,marginBottom:6}}>Call summary · {captured.durationLabel||"01:20"}</div><h1 style={{fontFamily:C.display,fontSize:30,fontWeight:600,margin:0}}>Review & confirm</h1></div>
    <span style={{display:"inline-flex",alignItems:"center",gap:7,fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:C.green,background:"rgba(47,125,50,.10)",padding:"7px 13px",borderRadius:20}}><span style={{width:7,height:7,borderRadius:"50%",background:C.green}}/>{captured.outcome}</span>
@@ -241,8 +253,8 @@ function Summary({captured,go}){
 }
 
 // ── OCR console (with outbound call dock) ────────────────────────────────────
-function CallDock({call,onEnd}){const s=CALL_STATUS[call.status]||CALL_STATUS.dialing;const mm=String(Math.floor(call.seconds/60)).padStart(2,"0");const ss=String(call.seconds%60).padStart(2,"0");const b=useRef(null);useEffect(()=>{if(b.current)b.current.scrollTop=b.current.scrollHeight;},[call.transcript.length]);
- return(<div style={{position:"fixed",right:26,bottom:26,width:360,background:C.card,border:`1px solid ${C.line}`,borderRadius:14,boxShadow:"0 12px 40px rgba(10,74,62,.18)",overflow:"hidden",zIndex:50,animation:"fadeUp .3s ease both"}}>
+function CallDock({call,onEnd}){const mob=useIsMobile();const s=CALL_STATUS[call.status]||CALL_STATUS.dialing;const mm=String(Math.floor(call.seconds/60)).padStart(2,"0");const ss=String(call.seconds%60).padStart(2,"0");const b=useRef(null);useEffect(()=>{if(b.current)b.current.scrollTop=b.current.scrollHeight;},[call.transcript.length]);
+ return(<div style={{position:"fixed",right:mob?12:26,bottom:mob?12:26,width:mob?"calc(100vw - 24px)":360,maxWidth:360,background:C.card,border:`1px solid ${C.line}`,borderRadius:14,boxShadow:"0 12px 40px rgba(10,74,62,.18)",overflow:"hidden",zIndex:50,animation:"fadeUp .3s ease both"}}>
   <div style={{padding:"14px 18px",background:C.tealDeep,display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{display:"flex",alignItems:"center",gap:9}}><Ekg color="#EAF3EF" w={22}/><span style={{fontFamily:C.sans,fontSize:13,fontWeight:600,color:"#EAF3EF"}}>Outbound callback</span></span><span style={{fontFamily:C.mono,fontSize:12,color:"#BFE0D6"}}>{mm}:{ss}</span></div>
   <div style={{padding:"10px 18px",display:"flex",alignItems:"center",gap:8,borderBottom:`1px solid ${C.line}`}}><span style={{width:8,height:8,borderRadius:"50%",background:s.c,animation:call.status==="ended"?"none":"pulse 1.4s ease infinite"}}/><span style={{fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:s.c}}>{s.t}</span>{call.to&&<span style={{fontFamily:C.mono,fontSize:11.5,color:C.inkFaint,marginLeft:"auto"}}>{call.to}</span>}</div>
   {call.error&&<div style={{padding:"8px 18px",fontFamily:C.mono,fontSize:11,color:C.red,wordBreak:"break-word"}}>{call.error}</div>}
@@ -263,6 +275,7 @@ const mapLab=a=>({c:a.name,v:a.value,unit:a.unit,range:a.reference_range,out:a.i
 
 // Renders the live result returned by the OCR pipeline's POST /process.
 function UploadedResult({result,onClear}){
+ const mob=useIsMobile();
  const c=result.classification||{};
  const conf=typeof c.confidence==="number"?c.confidence:null;
  const ext=result.extracted||{};
@@ -290,7 +303,7 @@ function UploadedResult({result,onClear}){
   {result.halt_reason&&<div style={{marginTop:14,padding:"12px 16px",background:"rgba(168,106,18,.08)",border:`1px solid rgba(168,106,18,.3)`,borderRadius:9,fontFamily:C.sans,fontSize:13,color:C.amber}}>{result.halt_reason}</div>}
   {(fieldRows.length>0||otherRows.length>0)&&(<><ST>Extracted fields</ST>
    <div>{fieldRows.map((f,i)=><Field key={"f"+i} f={f}/>)}
-    {otherRows.map(([k,v],i)=>(<div key={"o"+i} style={{display:"grid",gridTemplateColumns:"180px 1fr",gap:16,padding:"11px 0",borderBottom:`1px solid ${C.line}`,alignItems:"baseline"}}><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{k}</span><span style={{fontFamily:C.mono,fontSize:13.5,color:(v===null||v===undefined||v==="")?C.red:C.ink,fontStyle:(v===null||v===undefined||v==="")?"italic":"normal",wordBreak:"break-word"}}>{(v===null||v===undefined||v==="")?"not found":String(v)}</span></div>))}</div></>)}
+    {otherRows.map(([k,v],i)=>(<div key={"o"+i} style={{display:"grid",gridTemplateColumns:mob?"1fr":"180px 1fr",gap:mob?3:16,padding:"11px 0",borderBottom:`1px solid ${C.line}`,alignItems:"baseline"}}><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{k}</span><span style={{fontFamily:C.mono,fontSize:13.5,color:(v===null||v===undefined||v==="")?C.red:C.ink,fontStyle:(v===null||v===undefined||v==="")?"italic":"normal",wordBreak:"break-word"}}>{(v===null||v===undefined||v==="")?"not found":String(v)}</span></div>))}</div></>)}
   {labGroups.map(([k,arr])=>(<React.Fragment key={"lab"+k}><ST>{k==="test_values"?"Test results":prettyLabel(k)}</ST><LabTable labs={arr.map(mapLab)}/></React.Fragment>))}
   <ST>Human review queue {review.length>0&&<span style={{fontFamily:C.mono,fontSize:12,color:C.red}}>({review.length})</span>}</ST>
   {review.length===0?(<div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px",background:"rgba(47,125,50,.06)",border:`1px solid rgba(47,125,50,.2)`,borderRadius:9}}><span style={{width:8,height:8,borderRadius:"50%",background:C.green}}/><span style={{fontFamily:C.sans,fontSize:13}}>Nothing flagged — all fields extracted cleanly.</span></div>):(<div style={{border:`1px solid ${C.line}`,borderRadius:9,overflow:"hidden"}}>{review.map((r,i)=>(<div key={i} style={{display:"flex",gap:14,padding:"13px 16px",alignItems:"baseline",borderTop:i?`1px solid ${C.line}`:"none",background:C.card}}><span style={{fontFamily:C.mono,fontSize:13,color:C.red,fontWeight:500,minWidth:140,wordBreak:"break-word"}}>{String(r.field||"").replace(/^lab:/,"")}</span><span style={{fontFamily:C.sans,fontSize:12.5,color:C.inkSoft}}>{r.reason||r.status}</span></div>))}</div>)}
@@ -315,6 +328,7 @@ const aInput=(bad)=>({width:"100%",boxSizing:"border-box",fontFamily:C.sans,font
 function AField({label,children}){return(<label style={{display:"block",marginBottom:13}}><span style={{display:"block",fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".05em",textTransform:"uppercase",color:C.inkFaint,marginBottom:6}}>{label}</span>{children}</label>);}
 
 function AuthScreen({onAuthed,onClose}){
+ const mob=useIsMobile();
  const[mode,setMode]=useState("signup");
  const[f,setF]=useState({email:"",password:"",name:"",org_name:"",role:ROLES[0],org_type:ORG_TYPES[0],size:SIZES[0],interest:INTERESTS[2],phone:""});
  const[err,setErr]=useState(null);const[busy,setBusy]=useState(false);
@@ -331,9 +345,9 @@ function AuthScreen({onAuthed,onClose}){
    saveAuth(auth);onAuthed(auth);
   }catch(e2){setErr(e2.message||"Something went wrong.");}finally{setBusy(false);}
  };
- return(<div style={{position:"fixed",inset:0,zIndex:100,background:C.paper,backgroundImage:`url("${GRAIN}")`,backgroundSize:"120px 120px",overflowY:"auto",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"40px 20px"}}>
+ return(<div style={{position:"fixed",inset:0,zIndex:100,background:C.paper,backgroundImage:`url("${GRAIN}")`,backgroundSize:"120px 120px",overflowY:"auto",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:mob?"18px 12px":"40px 20px"}}>
   <style>{FONTS}</style>
-  <form onSubmit={submit} style={{width:"100%",maxWidth:440,background:C.card,border:`1px solid ${C.line}`,borderRadius:16,padding:"30px 30px 28px",boxShadow:"0 12px 40px rgba(10,74,62,.10)",animation:"panelIn .4s ease both",margin:"auto"}}>
+  <form onSubmit={submit} style={{width:"100%",maxWidth:440,background:C.card,border:`1px solid ${C.line}`,borderRadius:16,padding:mob?"22px 18px 20px":"30px 30px 28px",boxShadow:"0 12px 40px rgba(10,74,62,.10)",animation:"panelIn .4s ease both",margin:"auto"}}>
    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
     <div style={{display:"flex",alignItems:"center",gap:11}}><div style={{width:40,height:40,borderRadius:10,background:C.tealDeep,display:"flex",alignItems:"center",justifyContent:"center"}}><Ekg color="#EAF3EF" w={24}/></div><span style={{fontFamily:C.display,fontSize:19,fontWeight:600}}>Pareto Health</span></div>
     <button type="button" onClick={onClose} style={{border:"none",background:"none",cursor:"pointer",fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:C.inkFaint}}>← Back to site</button>
@@ -345,7 +359,7 @@ function AuthScreen({onAuthed,onClose}){
    <AField label="Password"><input style={aInput()} type="password" value={f.password} onChange={e=>set("password",e.target.value)} placeholder={isUp?"At least 8 characters":"Your password"}/></AField>
    {isUp&&<>
     <AField label="Organization (clinic / hospital)"><input style={aInput()} value={f.org_name} onChange={e=>set("org_name",e.target.value)} placeholder="e.g. Bay Area Heart Center"/></AField>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+    <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:12}}>
      <AField label="Your role"><select style={aInput()} value={f.role} onChange={e=>set("role",e.target.value)}>{ROLES.map(o=><option key={o}>{o}</option>)}</select></AField>
      <AField label="Organization type"><select style={aInput()} value={f.org_type} onChange={e=>set("org_type",e.target.value)}>{ORG_TYPES.map(o=><option key={o}>{o}</option>)}</select></AField>
      <AField label="Size"><select style={aInput()} value={f.size} onChange={e=>set("size",e.target.value)}>{SIZES.map(o=><option key={o}>{o}</option>)}</select></AField>
@@ -362,6 +376,7 @@ function AuthScreen({onAuthed,onClose}){
 
 // ── Dashboard (real runs from Postgres) ──────────────────────────────────────
 function Dashboard({auth}){
+ const mob=useIsMobile();
  const[runs,setRuns]=useState([]);const[selId,setSelId]=useState(null);
  const[loading,setLoading]=useState(true);const[loadErr,setLoadErr]=useState(null);
  const[upBusy,setUpBusy]=useState(false);const[upErr,setUpErr]=useState(null);const fileRef=useRef(null);
@@ -418,8 +433,8 @@ function Dashboard({auth}){
  const dockCall=dockOpen?{status:LMAP[live.status]||"connecting",seconds:live.seconds,transcript:live.transcript,to:liveTo,error:live.error}:null;
  const dockEnd=()=>{if(live.status==="live"||live.status==="connecting"){live.stop();}else{setDockOpen(false);live.reset();}};
  const fmtTime=iso=>{if(!iso)return "";try{return new Date(iso).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}catch{return iso;}};
- return(<div style={{display:"grid",gridTemplateColumns:"320px 1fr",minHeight:"calc(100vh - 69px)"}}>
-  <aside style={{borderRight:`1px solid ${C.line}`,padding:"18px 16px",display:"flex",flexDirection:"column",maxHeight:"calc(100vh - 69px)"}}>
+ return(<div style={{display:"grid",gridTemplateColumns:mob?"1fr":"320px 1fr",minHeight:"calc(100vh - 69px)"}}>
+  <aside style={{borderRight:mob?"none":`1px solid ${C.line}`,borderBottom:mob?`1px solid ${C.line}`:"none",padding:"18px 16px",display:"flex",flexDirection:"column",maxHeight:mob?"52vh":"calc(100vh - 69px)"}}>
    <div style={{display:"flex",justifyContent:"space-between",padding:"0 8px 14px"}}>{[["Cleared",counts.cleared,C.green],["Flagged",counts.flagged,C.amber],["Held",counts.held,C.red]].map(([l,n,c])=>(<div key={l} style={{textAlign:"center"}}><div style={{fontFamily:C.mono,fontSize:18,color:c,fontWeight:500}}>{n}</div><div style={{fontFamily:C.sans,fontSize:9,letterSpacing:".06em",textTransform:"uppercase",color:C.inkFaint}}>{l}</div></div>))}</div>
    <div style={{fontFamily:C.sans,fontSize:11,fontWeight:600,letterSpacing:".09em",textTransform:"uppercase",color:C.inkFaint,padding:"0 8px 10px"}}>Your fax runs</div>
    <div style={{flex:1,overflowY:"auto",margin:"0 -4px",padding:"0 4px"}}>
@@ -435,7 +450,7 @@ function Dashboard({auth}){
     {upErr&&<div style={{marginTop:8,fontFamily:C.mono,fontSize:11,color:C.red,wordBreak:"break-word"}}>{upErr}</div>}
    </div>
   </aside>
-  <main key={selId||"empty"} style={{padding:"28px 40px",animation:"panelIn .32s ease both",maxWidth:860}}>
+  <main key={selId||"empty"} style={{padding:mob?"20px 16px":"28px 40px",animation:"panelIn .32s ease both",maxWidth:860}}>
    {sel?(<>
     {runDisposition(sel)==="held"&&(<div style={{marginBottom:18,padding:"16px 18px",background:"rgba(15,110,91,.05)",border:`1px solid rgba(15,110,91,.22)`,borderRadius:10}}>
      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
