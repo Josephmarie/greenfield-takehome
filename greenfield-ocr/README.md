@@ -89,6 +89,49 @@ The tests use raw payloads shaped like the model's output, built from the three
 real faxes, to prove the deny-back, the NPI rule, the lab range computation, and
 quote-grounding all behave correctly — deterministically and offline.
 
+## Auth & lead capture (GTM)
+
+The FastAPI wrapper (`api.py`) also backs the web dashboard's real sign-up /
+sign-in and captures every signup as a sales lead.
+
+**Endpoints**
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/auth/signup` | Create a user (PBKDF2-hashed password), record the onboarding answers as a `leads` row, mirror to Google Sheet, return a JWT |
+| `POST` | `/auth/login` | Verify credentials, return a JWT |
+| `GET` | `/auth/me` | Echo the caller's claims (requires `Authorization: Bearer <jwt>`) |
+
+Three tables are created on boot (idempotent): `fax_runs`, `users`, `leads`.
+Password hashing and the HS256 JWT live in `greenfield_ocr/auth.py` (stdlib
+only — no extra deps) and are unit-tested offline in `tests/test_auth.py`.
+
+**Lead → Google Sheet.** On signup the lead is always written to Postgres, and
+*best-effort* appended as a row to a Google Sheet (failures are logged, never
+block signup). To enable the sheet:
+
+1. Reuse the voice agent's Google **service account** (or make one) and **enable
+   the Google Sheets API** on its GCP project.
+2. Create a Google Sheet, add a header row in tab `Leads`:
+   `created_at, name, email, org_name, role, org_type, size, interest, phone, user_id`,
+   and **share the sheet** (Editor) with the service-account email.
+3. Mount the credentials JSON on the OCR service at
+   `/etc/secrets/google_credentials.json` (same as the voice agent; a local
+   `greenfield-ocr/google_credentials.json` also works) and set
+   `GOOGLE_SHEET_ID` (the id from the sheet URL).
+
+**Environment variables**
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | yes | Claude vision for the pipeline |
+| `DATABASE_URL` | yes (prod) | Postgres for `fax_runs`, `users`, `leads` |
+| `JWT_SECRET` | recommended | Stable JWT signing secret (a random per-boot value is used if unset, which invalidates tokens on restart) |
+| `GOOGLE_SHEET_ID` | optional | Enables the Google Sheet lead mirror |
+| `GOOGLE_SHEET_TAB` | optional | Sheet tab name (default `Leads`) |
+
+`GET /` reports `db_configured` and `sheet_configured` so you can confirm wiring.
+
 ## Prompt caching
 
 The extraction rules (`prompts.EXTRACTION_RULES`) and each tool schema are

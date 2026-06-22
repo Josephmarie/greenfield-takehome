@@ -9,3 +9,5 @@ fastapi>=0.110
 uvicorn>=0.29
 python-multipart>=0.0.9
 psycopg2-binary>=2.9
+google-auth>=2.0
+google-api-python-client>=2.0

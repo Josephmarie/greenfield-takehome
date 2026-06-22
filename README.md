@@ -203,10 +203,10 @@ npm run dev            # http://localhost:5173
 
 | Service | Variables |
 | --- | --- |
-| OCR | `ANTHROPIC_API_KEY`, `DATABASE_URL` (Postgres, optional locally), `GREENFIELD_MODEL` (optional override) |
+| OCR | `ANTHROPIC_API_KEY`, `DATABASE_URL` (Postgres, optional locally), `GREENFIELD_MODEL` (optional override), `JWT_SECRET` (auth), `GOOGLE_SHEET_ID` + `GOOGLE_SHEET_TAB` (optional — mirror signups to a Google Sheet) |
 | Voice | `RETELL_API_KEY`, `RETELL_AGENT_ID` (inbound), `RETELL_OUTBOUND_AGENT_ID`, `RETELL_FROM_NUMBER`, `GOOGLE_CALENDAR_ID`, plus a Google service-account file at `/etc/secrets/google_credentials.json` or `voice-agent/google_credentials.json` |
 | Provisioning | `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_SECRET` (SIP-trunk / number setup) |
-| Web (build-time) | `VITE_CODE_JOSEPH`, `VITE_CODE_VARUNI` (invite codes) |
+| Web | No build-time secrets — sign-up / sign-in calls the OCR service's `/auth/*` endpoints at runtime |
 
 Secrets are never committed — `.env`, `.secrets.env`, and `google_credentials.json` are
 gitignored.
