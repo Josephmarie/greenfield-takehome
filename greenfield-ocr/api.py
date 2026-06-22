@@ -56,10 +56,18 @@ JWT_TTL_SECONDS = 60 * 60 * 24 * 7  # 7 days
 GOOGLE_SHEET_ID = os.environ.get("GOOGLE_SHEET_ID")
 GOOGLE_SHEET_TAB = os.environ.get("GOOGLE_SHEET_TAB", "Leads")
 GOOGLE_SHEET_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-GOOGLE_CRED_PATHS = [
+# GOOGLE_CREDENTIALS_PATH lets you point at wherever the creds actually landed
+# (e.g. a non-standard Render secret-file path); the standard locations follow.
+GOOGLE_CRED_PATHS = [p for p in [
+    os.environ.get("GOOGLE_CREDENTIALS_PATH"),
     "/etc/secrets/google_credentials.json",
     os.path.join(os.path.dirname(__file__), "google_credentials.json"),
-]
+] if p]
+
+
+def _google_creds_path() -> Optional[str]:
+    """First existing service-account credentials file, or None."""
+    return next((p for p in GOOGLE_CRED_PATHS if os.path.exists(p)), None)
 LEAD_COLUMNS = [
     "created_at", "name", "email", "org_name", "role",
     "org_type", "size", "interest", "phone", "user_id",
@@ -109,9 +117,9 @@ def _append_lead_to_sheet(lead: dict) -> None:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
 
-        path = next((p for p in GOOGLE_CRED_PATHS if os.path.exists(p)), None)
+        path = _google_creds_path()
         if not path:
-            print("[leads] GOOGLE_SHEET_ID set but no service-account credentials found; skipping sheet append.")
+            print(f"[leads] GOOGLE_SHEET_ID set but no credentials file found (looked in {GOOGLE_CRED_PATHS}); skipping sheet append.")
             return
         creds = service_account.Credentials.from_service_account_file(path, scopes=GOOGLE_SHEET_SCOPES)
         svc = build("sheets", "v4", credentials=creds, cache_discovery=False)
@@ -241,7 +249,8 @@ def health():
     return {"ok": True, "service": "pareto-health-ocr",
             "key_loaded": bool(os.environ.get("ANTHROPIC_API_KEY")),
             "db_configured": bool(DATABASE_URL),
-            "sheet_configured": bool(GOOGLE_SHEET_ID)}
+            "sheet_configured": bool(GOOGLE_SHEET_ID),
+            "sheet_creds_found": bool(_google_creds_path())}
 
 
 # ── auth + lead capture ──────────────────────────────────────────────────────
