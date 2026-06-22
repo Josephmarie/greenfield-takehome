@@ -349,7 +349,7 @@ function AuthScreen({onAuthed,onClose}){
   <style>{FONTS}</style>
   <form onSubmit={submit} style={{width:"100%",maxWidth:440,background:C.card,border:`1px solid ${C.line}`,borderRadius:16,padding:mob?"22px 18px 20px":"30px 30px 28px",boxShadow:"0 12px 40px rgba(10,74,62,.10)",animation:"panelIn .4s ease both",margin:"auto"}}>
    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-    <div style={{display:"flex",alignItems:"center",gap:11}}><div style={{width:40,height:40,borderRadius:10,background:C.tealDeep,display:"flex",alignItems:"center",justifyContent:"center"}}><Ekg color="#EAF3EF" w={24}/></div><span style={{fontFamily:C.display,fontSize:19,fontWeight:600}}>Pareto Health</span></div>
+    <div style={{display:"flex",alignItems:"center",gap:11}}><Logo s={40}/><span style={{fontFamily:C.display,fontSize:19,fontWeight:600}}>Pareto Health</span></div>
     <button type="button" onClick={onClose} style={{border:"none",background:"none",cursor:"pointer",fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:C.inkFaint}}>← Back to site</button>
    </div>
    <h1 style={{fontFamily:C.display,fontSize:24,fontWeight:600,margin:"0 0 6px"}}>{isUp?"Create your account":"Welcome back"}</h1>
