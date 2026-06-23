@@ -24,8 +24,7 @@ const GRAIN="data:image/svg+xml;utf8,"+encodeURIComponent(`<svg xmlns='http://ww
 
 const Ekg=({color=C.teal,w=30})=>(<svg width={w} height={w*0.5} viewBox="0 0 60 30" fill="none"><path d="M0 15 H14 L19 5 L25 25 L31 15 H60" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>);
 const PhoneWave=({color="#fff",s=15})=>(<svg width={s} height={s} viewBox="0 0 24 24" fill="none"><path d="M5 4h3l2 5-2 1a11 11 0 005 5l1-2 5 2v3a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" stroke={color} strokeWidth="1.8" strokeLinejoin="round"/></svg>);
-// Brand mark — the Pareto infinity-loop + P leg, matching /favicon.svg.
-const Logo=({s=36,bg=C.tealDeep,fg="#EAF3EF",radius})=>(<span style={{width:s,height:s,borderRadius:radius??Math.round(s*0.26),background:bg,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><svg width={Math.round(s*0.68)} height={Math.round(s*0.68)} viewBox="0 0 512 512" fill="none"><g stroke={fg} strokeWidth="34" strokeLinecap="round" strokeLinejoin="round"><circle cx="207" cy="198" r="58"/><circle cx="305" cy="198" r="58"/><path d="M207 250 L207 374"/></g></svg></span>);
+const Logo=({s=36,full=false})=>(<img src={full?"/pareto-health-logo.png":"/pareto-health-mark.png"} alt="Pareto Health" style={{height:s,width:"auto",display:"block",objectFit:"contain",flexShrink:0}}/>);
 
 // True when the viewport is phone-width. Lets components apply mobile-only
 // style overrides; desktop keeps its exact original values.
@@ -137,14 +136,14 @@ function Landing({onCall,go}){
      <button onClick={onCall} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:9,fontFamily:C.sans,fontSize:15,fontWeight:600,color:"#fff",background:C.tealDeep,border:"none",borderRadius:10,padding:"14px 24px",cursor:"pointer",boxShadow:"0 6px 20px rgba(10,74,62,.22)"}}><PhoneWave/>Talk to the front desk on the web</button>
      <button onClick={()=>go("console")} style={{fontFamily:C.sans,fontSize:15,fontWeight:600,color:C.tealDeep,background:"none",border:`1px solid ${C.line}`,borderRadius:10,padding:"14px 22px",cursor:"pointer"}}>View intake console</button>
     </div>
-    <a href="tel:+14242891652"
+    <a href="tel:+14156504518"
        onMouseEnter={e=>{e.currentTarget.style.borderColor=C.teal;e.currentTarget.style.boxShadow="0 6px 22px rgba(10,74,62,.10)";e.currentTarget.style.transform="translateY(-1px)";}}
        onMouseLeave={e=>{e.currentTarget.style.borderColor=C.line;e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="none";}}
        style={{marginTop:18,display:"inline-flex",alignItems:"center",gap:13,textDecoration:"none",background:C.card,border:`1px solid ${C.line}`,borderRadius:12,padding:"10px 18px 10px 12px",transition:"all .18s ease"}}>
      <span style={{width:40,height:40,borderRadius:"50%",background:"rgba(15,110,91,.10)",display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><PhoneWave color={C.tealDeep} s={18}/></span>
      <span style={{display:"flex",flexDirection:"column",lineHeight:1.25}}>
       <span style={{fontFamily:C.sans,fontSize:10.5,fontWeight:600,letterSpacing:".07em",textTransform:"uppercase",color:C.inkFaint}}>Or call the front desk</span>
-      <span style={{fontFamily:C.mono,fontSize:18,fontWeight:500,color:C.tealDeep,letterSpacing:".01em"}}>+1 (424) 289-1652</span>
+      <span style={{fontFamily:C.mono,fontSize:18,fontWeight:500,color:C.tealDeep,letterSpacing:".01em"}}>+1 (415) 650-4518</span>
      </span>
     </a>
     <div style={{marginTop:10,fontFamily:C.sans,fontSize:12,color:C.inkFaint}}>Same AI front desk, by phone · Mon–Fri 8am–5pm PT</div>
@@ -263,7 +262,7 @@ function CallDock({call,onEnd}){const mob=useIsMobile();const s=CALL_STATUS[call
   <div style={{padding:"12px 18px",borderTop:`1px solid ${C.line}`}}><button onClick={onEnd} style={{width:"100%",fontFamily:C.sans,fontSize:13,fontWeight:600,color:call.status==="ended"?C.inkSoft:"#fff",background:call.status==="ended"?C.paper:C.red,border:call.status==="ended"?`1px solid ${C.line}`:"none",borderRadius:8,padding:"10px",cursor:"pointer"}}>{call.status==="ended"?"Close":"End call"}</button></div>
  </div>);
 }
-const OUTBOUND=[{at:0,status:"dialing"},{at:1000,status:"ringing"},{at:3200,status:"voicemail",line:{who:"system",text:"Voicemail detected — leaving PHI-free message only"}},{at:4400,line:{who:"agent",text:"This is a message from Pareto Health. Please call us back at +1 (424) 289-1652. Thank you."}},{at:7600,status:"ended",line:{who:"system",text:"Attempt 1 of 3 logged · next attempt eligible in 48 hours"}}];
+const OUTBOUND=[{at:0,status:"dialing"},{at:1000,status:"ringing"},{at:3200,status:"voicemail",line:{who:"system",text:"Voicemail detected — leaving PHI-free message only"}},{at:4400,line:{who:"agent",text:"This is a message from Pareto Health. Please call us back at +1 (415) 650-4518. Thank you."}},{at:7600,status:"ended",line:{who:"system",text:"Attempt 1 of 3 logged · next attempt eligible in 48 hours"}}];
 // ── live OCR result rendering helpers ────────────────────────────────────────
 const prettyLabel=k=>String(k).replace(/_/g," ").replace(/\b\w/g,m=>m.toUpperCase());
 const KNOWN_CONF={high:1,medium:1,low:1,missing:1};
@@ -349,7 +348,7 @@ function AuthScreen({onAuthed,onClose}){
   <style>{FONTS}</style>
   <form onSubmit={submit} style={{width:"100%",maxWidth:440,background:C.card,border:`1px solid ${C.line}`,borderRadius:16,padding:mob?"22px 18px 20px":"30px 30px 28px",boxShadow:"0 12px 40px rgba(10,74,62,.10)",animation:"panelIn .4s ease both",margin:"auto"}}>
    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-    <div style={{display:"flex",alignItems:"center",gap:11}}><Logo s={40}/><span style={{fontFamily:C.display,fontSize:19,fontWeight:600}}>Pareto Health</span></div>
+    <div style={{display:"flex",alignItems:"center",gap:11}}><Logo s={76} full/></div>
     <button type="button" onClick={onClose} style={{border:"none",background:"none",cursor:"pointer",fontFamily:C.sans,fontSize:12.5,fontWeight:600,color:C.inkFaint}}>← Back to site</button>
    </div>
    <h1 style={{fontFamily:C.display,fontSize:24,fontWeight:600,margin:"0 0 6px"}}>{isUp?"Create your account":"Welcome back"}</h1>
