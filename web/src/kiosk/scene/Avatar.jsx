@@ -31,6 +31,36 @@ const _q = new THREE.Quaternion();
 const _e = new THREE.Euler();
 
 /**
+ * Find a morph target by name, tolerating the naming conventions in the wild.
+ *
+ * ARKit blendshapes ship under at least two conventions and exporters disagree:
+ * three.js's facecap uses `eyeBlink_L`, Apple's own canonical list and most
+ * commercial exporters use `eyeBlinkLeft`, and some tools emit `eyeBlink.L` or
+ * differ only in case. Matching one convention exactly means a model built with
+ * the other loads perfectly, reports zero channels, and sits there motionless.
+ * That is a miserable thing to debug, and swapping the avatar is meant to be a
+ * file drop, so all the variants are tried here.
+ */
+function resolveMorph(dict, name) {
+  if (dict[name] !== undefined) return dict[name];
+
+  const variants = [
+    name.replace(/_L$/, "Left").replace(/_R$/, "Right"),
+    name.replace(/_L$/, ".L").replace(/_R$/, ".R"),
+    name.replace(/_L$/, "_l").replace(/_R$/, "_r"),
+    name.replace(/Left$/, "_L").replace(/Right$/, "_R"),
+  ];
+  for (const v of variants) if (dict[v] !== undefined) return dict[v];
+
+  // Last resort: case-insensitive, ignoring separators.
+  const norm = (s) => s.toLowerCase().replace(/[._\s-]/g, "");
+  const want = norm(name);
+  for (const key in dict) if (norm(key) === want) return dict[key];
+
+  return undefined;
+}
+
+/**
  * Configure the loader for this model with everything served locally.
  *
  * useDraco is explicitly FALSE. drei's default points DRACOLoader at a Google
@@ -64,7 +94,7 @@ export default function Avatar({ signals, animators, audio, onReady, quality = 1
       const map = new Int32Array(FACE_CHANNELS.length).fill(-1);
       let hits = 0;
       FACE_CHANNELS.forEach((name, i) => {
-        const mi = o.morphTargetDictionary[name];
+        const mi = resolveMorph(o.morphTargetDictionary, name);
         if (mi !== undefined) { map[i] = mi; hits++; }
       });
       if (hits) morphTargets.push({ influences: o.morphTargetInfluences, map });
