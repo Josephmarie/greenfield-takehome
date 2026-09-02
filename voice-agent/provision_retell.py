@@ -43,8 +43,15 @@ BEGIN_MESSAGE = "Thank you for calling Greenfield Cardiology, how can I help you
 
 
 def load_system_prompt(path: str = "retell_system_prompt.md") -> str:
-    """Everything in retell_system_prompt.md below the divider line."""
-    text = Path(path).read_text()
+    """Everything in retell_system_prompt.md below the divider line.
+
+    The encoding is explicit on purpose. Path.read_text() with no encoding uses
+    the platform default -- UTF-8 on the Render container, cp1252 on Windows --
+    so provisioning from a Windows machine died with a UnicodeDecodeError on the
+    em dashes and box-drawing characters in the prompt, while the same code
+    worked in CI.
+    """
+    text = Path(path).read_text(encoding="utf-8")
     marker = "─────"
     return text.split(marker, 1)[-1].strip() if marker in text else text
 
