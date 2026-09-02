@@ -43,15 +43,8 @@ BEGIN_MESSAGE = "Thank you for calling Greenfield Cardiology, how can I help you
 
 
 def load_system_prompt(path: str = "retell_system_prompt.md") -> str:
-    """Everything in the prompt file below the divider line.
-
-    The encoding is explicit on purpose. Path.read_text() with no encoding uses
-    the platform default, which is UTF-8 on the Render container but cp1252 on
-    Windows -- so provisioning from a Windows machine died with a
-    UnicodeDecodeError on the em dashes and box-drawing characters in the
-    prompt, while the same code worked in CI.
-    """
-    text = Path(path).read_text(encoding="utf-8")
+    """Everything in retell_system_prompt.md below the divider line."""
+    text = Path(path).read_text()
     marker = "─────"
     return text.split(marker, 1)[-1].strip() if marker in text else text
 
@@ -88,39 +81,20 @@ def build_tools(base_url: str) -> list[dict]:
     ]
 
 
-def build_llm_kwargs(
-    base_url: str,
-    model: str = LLM_MODEL,
-    *,
-    prompt_path: str = "retell_system_prompt.md",
-    begin_message: str = BEGIN_MESSAGE,
-) -> dict:
-    """Kwargs for client.llm.create.
-
-    The keyword-only overrides exist so a second agent (the lobby kiosk) can
-    reuse this exact tool wiring with a different prompt and greeting. Defaults
-    are unchanged, so every existing caller and the contract tests behave
-    identically.
-    """
+def build_llm_kwargs(base_url: str, model: str = LLM_MODEL) -> dict:
     return {
         "model": model,
-        "general_prompt": load_system_prompt(prompt_path),
+        "general_prompt": load_system_prompt(),
         "general_tools": build_tools(base_url),
-        "begin_message": begin_message,
+        "begin_message": BEGIN_MESSAGE,
     }
 
 
-def build_agent_kwargs(
-    llm_id: str,
-    *,
-    voice_id: str = VOICE_ID,
-    agent_name: str = "Greenfield Cardiology Front Desk",
-    voicemail: bool = True,
-) -> dict:
-    kwargs = {
+def build_agent_kwargs(llm_id: str) -> dict:
+    return {
         "response_engine": {"type": "retell-llm", "llm_id": llm_id},
-        "voice_id": voice_id,
-        "agent_name": agent_name,
+        "voice_id": VOICE_ID,
+        "agent_name": "Greenfield Cardiology Front Desk",
         "language": "en-US",
         # Enables voicemail detection AND leaves the PHI-free message. The
         # static_text action is fixed, so no patient name / reason / clinical
@@ -129,11 +103,6 @@ def build_agent_kwargs(
             "action": {"type": "static_text", "text": VOICEMAIL_TEXT},
         },
     }
-    if not voicemail:
-        # A kiosk is a person standing in a lobby; it can never reach an
-        # answering machine, so voicemail detection is meaningless there.
-        kwargs.pop("voicemail_option")
-    return kwargs
 
 
 def inbound_webhook_url(agent_id: str) -> str:

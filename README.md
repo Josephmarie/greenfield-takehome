@@ -23,7 +23,7 @@ All data is synthetic. No real PHI is used anywhere.
 | Surface | Where | Notes |
 | --- | --- | --- |
 | **Phone (voice agent)** | **+1 (415) 650-4518** | Call it — schedule, ask about insurance, or say a red-flag symptom to trigger the 911 path. |
-| **Web app** | **https://health.trypareto.ai** | Reviewer login code: **`joseph-e430ee`** |
+| **Web app** | **https://web-cortif-ai.vercel.app** | Reviewer login code: **`joseph-e430ee`** |
 | **OCR service** | https://greenfield-ocr.onrender.com | `POST /process` (file upload), `POST /runs`, `GET /runs` |
 | **Voice backend** | https://greenfield-voice-agent.onrender.com | Retell tool endpoints + `/calls/web`, `/calls/outbound` |
 
@@ -33,36 +33,6 @@ All data is synthetic. No real PHI is used anywhere.
 In the web app, open **Dashboard** and upload any file from `greenfield-ocr/examples/`
 (`Fax-Referral.pdf`, `Fax-InsuranceCard.pdf`, `Fax-LabResult.pdf`) to see the live
 pipeline result; each run is saved and listed.
-
----
-
-## Lobby kiosk (`/kiosk`)
-
-A fourth surface: a full-screen animated 3D receptionist for a waiting-room
-display, talking to the same Retell agent stack. Full setup, tuning and
-operating notes are in **[KIOSK_SETUP.md](KIOSK_SETUP.md)**.
-
-```
-  Visitor speaks ──► presence/VAD wake ──► POST /calls/web {agent:"kiosk"}
-                     (mic held exclusively)          │
-                                                     ▼
-   ARKit morph targets ◄── viseme pose ◄── AnalyserNode ◄── Retell web call
-   (three.js, 60fps)        (formant DSP)   (reconfigured)     11labs-Adrian
-```
-
-- Lives at **https://health.trypareto.ai/kiosk** in the existing web app. `/` never downloads the 3D
-  renderer, and `npm run check:bundle` asserts that against real network traffic.
-- The phone path is untouched. `AGENTS["kiosk"]` falls back to the front-desk
-  agent when `RETELL_KIOSK_AGENT_ID` is unset, and
-  `tests/test_phone_path_guard.py` guards the +1 (415) 650-4518 binding.
-- Try it with no backend, no microphone and no Retell minutes:
-  `/kiosk?mock=1` runs a full scripted conversation against a formant
-  synthesiser. Add `?debug=1` for the frame-time and audio HUD.
-
-```bash
-cd web && npm install && npm test   # 1198 assertions, no browser required
-cd voice-agent && python -m pytest tests -q
-```
 
 ---
 

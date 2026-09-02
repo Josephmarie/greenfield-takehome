@@ -1,6 +1,0 @@
-{
-  "rewrites": [
-    { "source": "/kiosk", "destination": "/index.html" },
-    { "source": "/kiosk/(.*)", "destination": "/index.html" }
-  ]
-}
