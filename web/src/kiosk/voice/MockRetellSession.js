@@ -10,7 +10,7 @@ import { createVoice, PHRASES } from "../dev/speechSynth.js";
 // things that are otherwise painful to observe: a 40-second cold start and a
 // mid-call failure.
 
-const EVENTS = ["connected", "ready", "ended", "error", "agentStart", "agentEnd", "transcript"];
+const EVENTS = ["connected", "ready", "analyser", "ended", "error", "agentStart", "agentEnd", "transcript"];
 
 function emitter() {
   const map = new Map(EVENTS.map((e) => [e, new Set()]));
@@ -92,6 +92,10 @@ export function createMockSession({ audioContext, coldStartMs = 0, failAfterMs =
       await wait(220);
       if (cancelled) return;
       bus.emit("ready");
+      // Interface parity with RetellSession, which cannot hand out its
+      // analyser synchronously on ready. Emitting it separately here means the
+      // consumer has exactly one code path for both sessions.
+      bus.emit("analyser", voice.analyser);
 
       if (failAfterMs) later(() => bus.emit("error", "simulated mid-call failure"), failAfterMs);
       conversation();

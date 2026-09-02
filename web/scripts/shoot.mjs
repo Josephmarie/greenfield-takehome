@@ -54,6 +54,11 @@ const browser = await puppeteer.launch({
     "--enable-unsafe-swiftshader",
     "--use-gl=angle",
     "--mute-audio",
+    // Headless has no microphone, so a real (non-mock) call cannot publish a
+    // track and never connects. This fakes the CAPTURE DEVICE for the harness
+    // only - it is never used by the kiosk itself, where it would make the
+    // avatar listen to a test tone instead of a visitor.
+    ...(bool("fakemedia") ? ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] : []),
   ],
 });
 

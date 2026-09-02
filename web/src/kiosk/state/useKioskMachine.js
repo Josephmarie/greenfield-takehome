@@ -146,8 +146,10 @@ export function useKioskMachine({ signals, audio, mock = false, wakeEngine = "pr
         session.current = s;
 
         s.on("connected", () => dispatch({ type: "CALL_CONNECTED" }));
+        // The analyser arrives on its own event because the Retell SDK does
+        // not have one yet at the moment it announces the call is ready.
+        s.on("analyser", (node) => audio.attach(node, getAudioContext().sampleRate));
         s.on("ready", () => {
-          audio.attach(s.getAnalyser(), getAudioContext().sampleRate);
           dispatch({ type: "CALL_READY" });
           // Autoplay policy: this can reject on a kiosk nobody has touched.
           // It must NOT end the call - the visitor taps once and hears her.
@@ -173,9 +175,11 @@ export function useKioskMachine({ signals, audio, mock = false, wakeEngine = "pr
         break;
       }
       case "CONFIGURE_ANALYSER": {
-        // The session already reconfigured it on ready; re-attaching here keeps
-        // the machine the single source of truth about when audio is live.
-        audio.attach(session.current?.getAnalyser?.() ?? null, getAudioContext().sampleRate);
+        // Best-effort: on a real call the analyser usually does not exist yet
+        // at this point, and the session's own "analyser" event is what
+        // actually wires it up. Harmless when it is already attached.
+        const node = session.current?.getAnalyser?.();
+        if (node) audio.attach(node, getAudioContext().sampleRate);
         break;
       }
       case "UNLOCK_AUDIO": {
