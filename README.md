@@ -23,7 +23,7 @@ All data is synthetic. No real PHI is used anywhere.
 | Surface | Where | Notes |
 | --- | --- | --- |
 | **Phone (voice agent)** | **+1 (415) 650-4518** | Call it — schedule, ask about insurance, or say a red-flag symptom to trigger the 911 path. |
-| **Web app** | **https://web-cortif-ai.vercel.app** | Reviewer login code: **`joseph-e430ee`** |
+| **Web app** | **https://health.trypareto.ai** | Reviewer login code: **`joseph-e430ee`** |
 | **OCR service** | https://greenfield-ocr.onrender.com | `POST /process` (file upload), `POST /runs`, `GET /runs` |
 | **Voice backend** | https://greenfield-voice-agent.onrender.com | Retell tool endpoints + `/calls/web`, `/calls/outbound` |
 
@@ -50,7 +50,7 @@ operating notes are in **[KIOSK_SETUP.md](KIOSK_SETUP.md)**.
    (three.js, 60fps)        (formant DSP)   (reconfigured)     11labs-Adrian
 ```
 
-- Lives at `/kiosk` in the existing web app. `/` never downloads the 3D
+- Lives at **https://health.trypareto.ai/kiosk** in the existing web app. `/` never downloads the 3D
   renderer, and `npm run check:bundle` asserts that against real network traffic.
 - The phone path is untouched. `AGENTS["kiosk"]` falls back to the front-desk
   agent when `RETELL_KIOSK_AGENT_ID` is unset, and

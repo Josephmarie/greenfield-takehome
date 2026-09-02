@@ -6,7 +6,7 @@
 # faking it with --use-fake-ui-for-media-stream hides real failures.
 
 param(
-  [string]$Url     = "https://web-cortif-ai.vercel.app/kiosk",
+  [string]$Url     = "https://health.trypareto.ai/kiosk",
   [string]$Profile = "C:\kiosk-profile",
   [switch]$Debug
 )

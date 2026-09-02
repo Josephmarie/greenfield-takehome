@@ -20,7 +20,7 @@ Task Scheduler at logon, not from a shortcut, so it survives a reboot.
 ```powershell
 & "C:\Program Files\Google\Chrome\Application\chrome.exe" `
   --kiosk `
-  --app="https://web-cortif-ai.vercel.app/kiosk" `
+  --app="https://health.trypareto.ai/kiosk" `
   --user-data-dir="C:\kiosk-profile" `
   --autoplay-policy=no-user-gesture-required `
   --disable-features=CalculateNativeWinOcclusion,Translate `
@@ -45,7 +45,7 @@ Prefer the enterprise policy over a flag. Set once, as Administrator:
 
 ```
 HKLM\SOFTWARE\Policies\Google\Chrome\AudioCaptureAllowedUrls\1
-  = "https://web-cortif-ai.vercel.app"
+  = "https://health.trypareto.ai"
 ```
 
 This pre-grants the microphone for that origin with no prompt at all.
