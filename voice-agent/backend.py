@@ -302,26 +302,60 @@ except Exception:               # keep the tool server usable without call creds
 
 AGENT_ID = os.environ.get("RETELL_AGENT_ID")                     # front desk (inbound)
 OUTBOUND_AGENT_ID = os.environ.get("RETELL_OUTBOUND_AGENT_ID")   # outbound callback
+KIOSK_AGENT_ID = os.environ.get("RETELL_KIOSK_AGENT_ID")         # lobby kiosk (web only)
 # The practice's Twilio number, imported into Retell for outbound dialing.
 FROM_NUMBER = os.environ.get("RETELL_FROM_NUMBER", "+14156504518")
 
 # Named agents the browser can start a web call against.
-AGENTS = {"front_desk": AGENT_ID, "outbound": OUTBOUND_AGENT_ID or AGENT_ID}
+#
+# "kiosk" falls back to the front desk agent when RETELL_KIOSK_AGENT_ID is
+# unset, so deploying this change with no new configuration behaves exactly as
+# before. Nothing here can affect the PSTN path: the +1 415-650-4518 binding
+# lives in Retell's own phone-number record, keyed on a literal agent id, and
+# is reached only by setup_sip_trunk.py -- which must never be re-run.
+AGENTS = {
+    "front_desk": AGENT_ID,
+    "outbound": OUTBOUND_AGENT_ID or AGENT_ID,
+    "kiosk": KIOSK_AGENT_ID or AGENT_ID,
+}
 
 
 class WebCallReq(BaseModel):
-    agent: str | None = None  # "front_desk" (default) | "outbound"
+    agent: str | None = None            # "front_desk" (default) | "outbound" | "kiosk"
+    metadata: dict | None = None        # attached to the call record
+    dynamic_variables: dict | None = None  # {{template}} values for the prompt
+
+
+@app.get("/healthz")
+def healthz():
+    """Cheap liveness target.
+
+    The kiosk pings this every few minutes while idle to keep the free-tier
+    instance from sleeping, so a visitor never waits out a 30-60s cold start.
+    Rendering /docs (the current health check path) for that would be wasteful.
+    """
+    return {"ok": True}
 
 
 @app.post("/calls/web")
 def create_web_call(req: WebCallReq | None = None):
     """Mint a web-call token the browser SDK connects to.
 
-    Body is optional: {"agent": "front_desk"|"outbound"}. Defaults to front desk.
+    Body is optional: {"agent": "front_desk"|"outbound"|"kiosk"}. Defaults to
+    front desk. metadata / dynamic_variables are only forwarded when supplied,
+    so existing callers that send neither are unaffected.
     """
     key = (req.agent if req else None) or "front_desk"
     agent_id = AGENTS.get(key) or AGENT_ID
-    call = _retell.call.create_web_call(agent_id=agent_id)
+    kwargs = {"agent_id": agent_id}
+    if req and req.metadata:
+        kwargs["metadata"] = req.metadata
+    if req and req.dynamic_variables:
+        # Retell requires string values for prompt template variables.
+        kwargs["retell_llm_dynamic_variables"] = {
+            k: str(v) for k, v in req.dynamic_variables.items()
+        }
+    call = _retell.call.create_web_call(**kwargs)
     return {"access_token": call.access_token, "call_id": call.call_id, "agent": key}
 
 
