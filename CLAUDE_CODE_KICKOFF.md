@@ -35,7 +35,8 @@ before declaring any step done.
 1. **OCR pipeline.**
    - `cd greenfield-ocr && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
    - `pytest -v` — confirm 5 green.
-   - With my `ANTHROPIC_API_KEY` set, run the CLI on all three docs in
+   - With model credentials set (`ANTHROPIC_API_KEY`, or
+     `AWS_BEARER_TOKEN_BEDROCK` plus `AWS_REGION`), run the CLI on all three docs in
      `examples/` and save the outputs to a `sample_outputs/` folder so I can
      show them in the Loom. Confirm the referral triggers the deny-back naming
      Group number + Referring provider NPI, the insurance card extracts all six
@@ -77,7 +78,8 @@ value from me:
 - [ ] **Retell account + API key + billing** — I create the account at
   retellai.com, generate an API key, add a payment method, and export
   `RETELL_API_KEY`. (~5 min, web. HIPAA/BAA not needed — data is synthetic.)
-- [ ] **Anthropic API key** — export `ANTHROPIC_API_KEY` if not already set.
+- [ ] **Claude credentials** — export `ANTHROPIC_API_KEY`, or a Bedrock bearer key
+  as `AWS_BEARER_TOKEN_BEDROCK` plus `AWS_REGION`.
 - [ ] **GitHub auth** — `gh auth login` if not already authenticated.
 - [ ] **Call the agent + record the voice Loom** — I phone the number and walk
   through all 4 scenarios (including saying "severe chest pain, left arm numb"

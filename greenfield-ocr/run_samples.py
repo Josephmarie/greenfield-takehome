@@ -1,9 +1,10 @@
 """Run the pipeline on all three example faxes and save artifacts to sample_outputs/.
 
-Requires ANTHROPIC_API_KEY in the environment (the only thing the live run needs;
-poppler + all Python deps are already handled by requirements.txt).
+Requires either ANTHROPIC_API_KEY or AWS_BEARER_TOKEN_BEDROCK in the environment
+(plus AWS_REGION for Bedrock; poppler and Python deps are handled by requirements.txt).
 
-    export ANTHROPIC_API_KEY=sk-ant-...
+    export AWS_BEARER_TOKEN_BEDROCK=...
+    export AWS_REGION=us-east-1
     python run_samples.py
 
 Writes, for each example:
@@ -18,10 +19,10 @@ cares about, so the Loom narration has something concrete to point at.
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
+from greenfield_ocr.extract import model_configuration_error
 from greenfield_ocr.pipeline import process
 
 EXAMPLES = [
@@ -33,8 +34,12 @@ OUT = Path("sample_outputs")
 
 
 def main() -> int:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY is not set. Export it and re-run.", file=sys.stderr)
+    config_error = model_configuration_error()
+    if config_error:
+        print(
+            f"ERROR: {config_error}",
+            file=sys.stderr,
+        )
         return 2
 
     OUT.mkdir(exist_ok=True)

@@ -10,8 +10,8 @@ referrals — the generated deny-back letter.
 
     curl -F file=@examples/Fax-Referral.pdf http://localhost:8000/process
 
-ANTHROPIC_API_KEY must be set in the environment (the pipeline calls Claude
-vision for classification + extraction).
+Configure either ANTHROPIC_API_KEY (Claude API) or AWS_BEARER_TOKEN_BEDROCK
+plus AWS_REGION (Amazon Bedrock) in the environment for live model calls.
 """
 
 from __future__ import annotations
@@ -39,6 +39,7 @@ from greenfield_ocr.auth import (
     verify_password,
 )
 from greenfield_ocr.document_loader import load_as_png_base64
+from greenfield_ocr.extract import model_configuration_error, model_credentials_configured
 from greenfield_ocr.pipeline import process
 
 ALLOWED_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".tiff", ".tif"}
@@ -247,7 +248,8 @@ def list_runs(user_id: str):
 @app.get("/")
 def health():
     return {"ok": True, "service": "pareto-health-ocr",
-            "key_loaded": bool(os.environ.get("ANTHROPIC_API_KEY")),
+            "key_loaded": model_credentials_configured(),
+            "model_configured": model_configuration_error() is None,
             "db_configured": bool(DATABASE_URL),
             "sheet_configured": bool(GOOGLE_SHEET_ID),
             "sheet_creds_found": bool(_google_creds_path())}
@@ -348,8 +350,12 @@ async def process_document(file: UploadFile = File(...)):
                    f"Allowed: {', '.join(sorted(ALLOWED_SUFFIXES))}",
         )
 
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured on the server.")
+    config_error = model_configuration_error()
+    if config_error:
+        raise HTTPException(
+            status_code=500,
+            detail=config_error,
+        )
 
     data = await file.read()
     # The loader works off a filesystem path; persist to a temp file with the

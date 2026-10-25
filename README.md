@@ -180,7 +180,10 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 pytest -v                                   # 5 offline logic tests, no API key
 
-export ANTHROPIC_API_KEY=...                # required for live extraction
+# Choose one provider for live extraction:
+export AWS_BEARER_TOKEN_BEDROCK=...         # Bedrock API key
+export AWS_REGION=us-east-1                 # required for Bedrock
+# Or set ANTHROPIC_API_KEY for the first-party Claude API.
 python -m greenfield_ocr.cli process examples/Fax-Referral.pdf   # CLI
 uvicorn api:app --port 8000                 # HTTP API (POST /process, /runs)
 ```
@@ -203,7 +206,7 @@ npm run dev            # http://localhost:5173
 
 | Service | Variables |
 | --- | --- |
-| OCR | `ANTHROPIC_API_KEY`, `DATABASE_URL` (Postgres, optional locally), `GREENFIELD_MODEL` (optional override), `JWT_SECRET` (auth), `GOOGLE_SHEET_ID` + `GOOGLE_SHEET_TAB` (optional — mirror signups to a Google Sheet) |
+| OCR | `AWS_BEARER_TOKEN_BEDROCK` + `AWS_REGION` for Bedrock, or `ANTHROPIC_API_KEY` for the first-party Claude API; `GREENFIELD_MODEL` (optional override), `DATABASE_URL` (Postgres, optional locally), `JWT_SECRET` (auth), `GOOGLE_SHEET_ID` + `GOOGLE_SHEET_TAB` (optional — mirror signups to a Google Sheet) |
 | Voice | `RETELL_API_KEY`, `RETELL_AGENT_ID` (inbound), `RETELL_OUTBOUND_AGENT_ID`, `RETELL_FROM_NUMBER`, `GOOGLE_CALENDAR_ID`, plus a Google service-account file at `/etc/secrets/google_credentials.json` or `voice-agent/google_credentials.json` |
 | Provisioning | `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_SECRET` (SIP-trunk / number setup) |
 | Web | No build-time secrets — sign-up / sign-in calls the OCR service's `/auth/*` endpoints at runtime |

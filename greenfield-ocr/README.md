@@ -59,7 +59,13 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt          # needs poppler for pdf2image:
                                           #   macOS: brew install poppler
                                           #   ubuntu: apt-get install poppler-utils
-export ANTHROPIC_API_KEY=sk-ant-...
+# For Amazon Bedrock API key authentication:
+export AWS_BEARER_TOKEN_BEDROCK=...
+export AWS_REGION=us-east-1
+# Optional: override the default Bedrock model/profile for your region:
+export GREENFIELD_MODEL=us.anthropic.claude-sonnet-4-6
+# Or use a first-party Claude API key instead:
+# export ANTHROPIC_API_KEY=...
 ```
 
 ## Run
@@ -124,7 +130,10 @@ block signup). To enable the sheet:
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | yes | Claude vision for the pipeline |
+| `AWS_BEARER_TOKEN_BEDROCK` | one of these is required | Amazon Bedrock bearer API key |
+| `AWS_REGION` | yes for Bedrock | AWS region for Bedrock Runtime |
+| `ANTHROPIC_API_KEY` | one of these is required | First-party Claude API key (alternative to Bedrock) |
+| `GREENFIELD_MODEL` | optional | Model ID override; Bedrock defaults to `us.anthropic.claude-sonnet-4-6`, Claude API defaults to `claude-sonnet-4-6` |
 | `DATABASE_URL` | yes (prod) | Postgres for `fax_runs`, `users`, `leads` |
 | `JWT_SECRET` | recommended | Stable JWT signing secret (a random per-boot value is used if unset, which invalidates tokens on restart) |
 | `GOOGLE_SHEET_ID` | optional | Enables the Google Sheet lead mirror |

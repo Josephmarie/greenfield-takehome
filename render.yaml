@@ -16,7 +16,7 @@
 #      (greenfield-ocr/api.py, POST /process). Built from a Dockerfile so the
 #      image includes poppler-utils, which pdf2image needs to rasterize PDFs.
 #
-# Secrets (RETELL_API_KEY, ANTHROPIC_API_KEY, …) are marked sync:false and are
+# Secrets (RETELL_API_KEY, AWS_BEARER_TOKEN_BEDROCK, …) are marked sync:false and are
 # set per-service in the dashboard / via the API — never committed.
 
 services:
@@ -47,5 +47,7 @@ services:
     dockerContext: .
     healthCheckPath: /
     envVars:
-      - key: ANTHROPIC_API_KEY
+      - key: AWS_BEARER_TOKEN_BEDROCK
+        sync: false
+      - key: AWS_REGION
         sync: false
