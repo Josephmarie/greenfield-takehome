@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { startRetellCall } from "./retell-call.js";
 
 // Pareto Health — multi-page web app
 // Landing (with live intake call) → post-call Summary (editable) → OCR Console.
@@ -35,33 +36,32 @@ function useIsMobile(bp=760){
 }
 
 // ── live Retell web call ─────────────────────────────────────────────────────
-// Mints a web-call token from the backend (API_BASE) and drives a real
-// browser<->agent call via retell-client-js-sdk. status: idle|connecting|live|
+// Creates a v3 web call directly with a domain-restricted public key.
+// status: idle|connecting|live|
 // ended|error. transcript: [{who:"agent"|"user", text}].
 function useRetellCall(){
  const[status,setStatus]=useState("idle");const[seconds,setSeconds]=useState(0);
  const[transcript,setTranscript]=useState([]);const[error,setError]=useState(null);
- const clientRef=useRef(null);const tickRef=useRef(null);
+ const clientRef=useRef(null);const tickRef=useRef(null);const generation=useRef(0);
  const startTick=()=>{if(tickRef.current)return;tickRef.current=setInterval(()=>setSeconds(s=>s+1),1000);};
  const stopTick=()=>{if(tickRef.current){clearInterval(tickRef.current);tickRef.current=null;}};
  const start=async(agent)=>{
-  setStatus("connecting");setError(null);setTranscript([]);setSeconds(0);
+  const current=++generation.current;setStatus("connecting");setError(null);setTranscript([]);setSeconds(0);
   try{
-   const res=await fetch(`${API_BASE}/calls/web`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({agent})});
-   if(!res.ok){let m=`HTTP ${res.status}`;try{const e=await res.json();if(e.detail)m=typeof e.detail==="string"?e.detail:JSON.stringify(e.detail);}catch{}throw new Error(m);}
-   const {access_token}=await res.json();
    const mod=await import("retell-client-js-sdk");
-   const client=new mod.RetellWebClient();clientRef.current=client;
-   client.on("call_started",()=>{setStatus("live");startTick();});
-   client.on("call_ended",()=>{setStatus("ended");stopTick();});
-   client.on("error",(e)=>{setError((e&&(e.message||e.toString()))||"call error");setStatus("error");try{client.stopCall();}catch{}stopTick();});
-   client.on("update",(u)=>{if(u&&Array.isArray(u.transcript))setTranscript(u.transcript.map(t=>({who:t.role==="agent"?"agent":"user",text:t.content})));});
-   await client.startCall({accessToken:access_token});
-  }catch(e){setError(e.message||"failed to start call");setStatus("error");stopTick();}
+   if(current!==generation.current)return;
+   const ids={front_desk:import.meta.env.VITE_RETELL_FRONT_DESK_AGENT_ID,outbound:import.meta.env.VITE_RETELL_OUTBOUND_AGENT_ID||"agent_c56099a90a4b27dcaa1df3f737"};
+   clientRef.current=startRetellCall({RetellClient:mod.RetellClient,publicKey:import.meta.env.VITE_RETELL_PUBLIC_KEY,agentId:ids[agent||"front_desk"],
+    onStatus:(s)=>{if(current!==generation.current)return;if(s==="live"){setStatus("live");startTick();}else if(s==="ended"){setStatus("ended");stopTick();}},
+    onEnd:()=>{if(current===generation.current){setStatus(s=>s==="error"?s:"ended");stopTick();}},
+    onError:(e)=>{if(current===generation.current){setError(e?.message||"call error");setStatus("error");stopTick();}},
+    onTranscript:(items)=>{if(current===generation.current)setTranscript(items);}});
+  }catch(e){if(current===generation.current){setError(e.message||"failed to start call");setStatus("error");stopTick();}}
  };
- const stop=()=>{const c=clientRef.current;if(c){try{c.stopCall();}catch{}}stopTick();setStatus(s=>(s==="live"||s==="connecting")?"ended":s);};
- const reset=()=>{const c=clientRef.current;if(c){try{c.stopCall();}catch{}}stopTick();setStatus("idle");setSeconds(0);setTranscript([]);setError(null);};
- useEffect(()=>()=>{const c=clientRef.current;if(c){try{c.stopCall();}catch{}}stopTick();},[]);
+ const end=()=>{generation.current++;const c=clientRef.current;clientRef.current=null;if(c){try{Promise.resolve(c.end()).catch(()=>{});}catch{}}stopTick();};
+ const stop=()=>{end();setStatus(s=>(s==="live"||s==="connecting")?"ended":s);};
+ const reset=()=>{end();setStatus("idle");setSeconds(0);setTranscript([]);setError(null);};
+ useEffect(()=>()=>end(),[]);
  return {status,seconds,transcript,error,start,stop,reset};
 }
 
